@@ -67,7 +67,7 @@ flutter_app_name:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/media/appLogo.png"  # <-- Replace this with your actual icon path
+  image_path: "assets/media/appIcon.png"  # <-- Replace this with your actual icon path
   adaptive_icon_background: null
   adaptive_icon_foreground: null
 
@@ -81,6 +81,7 @@ flutter:
 
   assets:
     - assets/media/appLogo.png
+    - assets/media/appIcon.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

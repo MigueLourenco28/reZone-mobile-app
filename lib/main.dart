@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 
 void main() => runApp(const MyApp());
 
+String tokenId = "";
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -27,7 +29,7 @@ class _MyAppState extends State<MyApp> {
         colorSchemeSeed: Colors.green[700],
       ),
       home: _isLoggedIn
-          ? const MapScreen()
+          ? const HomeScreen()
           : LoginRegisterScreen(onLoginSuccess: _onLoginSuccess),
     );
   }
@@ -75,7 +77,9 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
-      if (res.statusCode == 200 && res.body.trim() == 'true') {
+      if (res.statusCode == 200) {
+        final responseJson = jsonDecode(res.body);
+        tokenId = responseJson['token'];
         widget.onLoginSuccess();
       } else {
         showMessage("Login failed");
@@ -112,7 +116,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
-      if (res.statusCode == 200 && res.body.trim() == 'true') {
+      if (res.statusCode == 200) {
         showMessage("Registration successful");
         setState(() => isRegistering = false); // go to login
       } else {
@@ -157,11 +161,14 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
             Text(
               'Welcome to ReZone ',
               style: TextStyle(
-                fontFamily: 'OpenSansBold',
+                fontFamily: 'RobotoSlab',
                 fontSize: 26.0,
               ),
             ),
-            Image(image: AssetImage('assets/media/appLogo.png'), height: 30.0, width: 30.0),
+            Image(
+                image: AssetImage('assets/media/appLogo.png'),
+                height: 30.0,
+                width: 30.0),
           ]
       )),
       body: SingleChildScrollView(
@@ -218,18 +225,88 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   }
 }
 
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 1;
+
+  final List<Widget> _pages = const [
+    CommunityScreen(),
+    MapScreen(),
+    ProfileScreen(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: Colors.green[700],
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.groups),
+            label: 'Community',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map),
+            label: 'Map',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CommunityScreen extends StatelessWidget {
+  const CommunityScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Community')),
+      body: Center(child: Text('Community content goes here')),
+    );
+  }
+}
+
 class MapScreen extends StatelessWidget {
   const MapScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const LatLng _center = LatLng(45.521563, -122.677433);
+    const LatLng _center = LatLng(39.5558, -8.0006); // Mação
+    return GoogleMap(
+      initialCameraPosition: const CameraPosition(target: _center, zoom: 11.0),
+      onMapCreated: (_) {},
+    );
+  }
+}
+
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Maps Sample App')),
-      body: GoogleMap(
-        initialCameraPosition: const CameraPosition(target: _center, zoom: 11.0),
-        onMapCreated: (_) {},
-      ),
+      appBar: AppBar(title: Text('Profile')),
+      body: Center(child: Text('Profile information goes here')),
     );
   }
 }

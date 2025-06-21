@@ -42,6 +42,7 @@ dependencies:
   json_serializable: ^6.6.2
   geolocator: ^11.0.0
   rename: ^3.1.0
+  google_fonts: ^4.0.4
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +74,24 @@ flutter_icons:
 
 # The following section is specific to Flutter packages.
 flutter:
+
+  fonts:
+    - family: Handler
+      fonts:
+        - asset: assets/fonts/Handler/Handler-Regular.ttf
+          weight: 700
+    - family: RobotoSlab
+      fonts:
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-Black.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-Bold.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-ExtraBold.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-ExtraLight.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-Light.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-Medium.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-Regular.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-SemiBold.ttf
+        - asset: assets/fonts/RobotoSlab/RobotoSlab-Thin.ttf
+          weight: 700
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

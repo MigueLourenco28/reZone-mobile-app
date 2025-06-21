@@ -1,11 +1,10 @@
 import 'dart:convert';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 void main() => runApp(const MyApp());
-
-String tokenId = "";
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -16,9 +15,20 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _isLoggedIn = false;
+  String? _tokenID, _fullName, _password;
 
-  void _onLoginSuccess() {
-    setState(() => _isLoggedIn = true);
+  void _onLoginSuccess(String tokenID) {
+    setState(() {
+      _tokenID = tokenID;
+      _isLoggedIn = true;
+    });
+  }
+
+  void _onLogoutSuccess() {
+    setState(() {
+      _isLoggedIn = false;
+      _tokenID = null;
+    });
   }
 
   @override
@@ -29,14 +39,14 @@ class _MyAppState extends State<MyApp> {
         colorSchemeSeed: Colors.green[700],
       ),
       home: _isLoggedIn
-          ? const HomeScreen()
+          ? HomeScreen(tokenID: _tokenID!, onLogoutSuccess: _onLogoutSuccess)
           : LoginRegisterScreen(onLoginSuccess: _onLoginSuccess),
     );
   }
 }
 
 class LoginRegisterScreen extends StatefulWidget {
-  final VoidCallback onLoginSuccess;
+  final void Function(String tokenID) onLoginSuccess;
   const LoginRegisterScreen({super.key, required this.onLoginSuccess});
 
   @override
@@ -79,13 +89,13 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       );
       if (res.statusCode == 200) {
         final responseJson = jsonDecode(res.body);
-        tokenId = responseJson['token'];
-        widget.onLoginSuccess();
+        final tokenID = responseJson['token'];
+        widget.onLoginSuccess(tokenID);
       } else {
         showMessage("Login failed");
       }
     } catch (e) {
-      showMessage("Error: $e");
+      showMessage("Error connecting to server.");
     } finally {
       setState(() => isLoading = false);
     }
@@ -123,7 +133,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         showMessage("Register failed: ${res.body}");
       }
     } catch (e) {
-      showMessage("Error: $e");
+      showMessage("Error connecting to server.");
     } finally {
       setState(() => isLoading = false);
     }
@@ -159,16 +169,33 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
           mainAxisAlignment:MainAxisAlignment.center,
           children:[
             Text(
-              'Welcome to ReZone ',
+              'Welcome to ',
               style: TextStyle(
-                fontFamily: 'RobotoSlab',
-                fontSize: 26.0,
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+            ),
+            Text(
+              'Re',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+                color: Colors.green,
+              ),
+            ),
+            Text(
+              'Zone ',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+                color: Colors.blue,
               ),
             ),
             Image(
                 image: AssetImage('assets/media/appLogo.png'),
-                height: 30.0,
-                width: 30.0),
+                height: 45.0,
+                width: 45.0
+            ),
           ]
       )),
       body: SingleChildScrollView(
@@ -226,20 +253,33 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String tokenID;
+  final VoidCallback onLogoutSuccess;
+  const HomeScreen({super.key, required this.tokenID, required this.onLogoutSuccess});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 1;
+  int _selectedIndex = 2;
 
-  final List<Widget> _pages = const [
-    CommunityScreen(),
-    MapScreen(),
-    ProfileScreen(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const CommunityScreen(),
+      const ActivitiesScreen(),
+      const MapScreen(),
+      ProfileScreen(
+        tokenID: widget.tokenID,
+        onLogoutSuccess: widget.onLogoutSuccess,
+      ),
+      const SettingsScreen(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -255,10 +295,25 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         selectedItemColor: Colors.green[700],
+        unselectedItemColor: Colors.grey,
+        selectedLabelStyle: const TextStyle(
+          //fontFamily: 'Handler',
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          //fontFamily: 'Handler',
+          fontSize: 12,
+          fontWeight: FontWeight.normal,
+        ),
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.groups),
             label: 'Community',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.landscape),
+            label: 'Activities',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.map),
@@ -267,6 +322,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),
@@ -286,11 +345,24 @@ class CommunityScreen extends StatelessWidget {
   }
 }
 
+class ActivitiesScreen extends StatelessWidget {
+  const ActivitiesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Activities')),
+      body: Center(child: Text('Activity content goes here')),
+    );
+  }
+}
+
 class MapScreen extends StatelessWidget {
   const MapScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    //TODO: Adicionar coordenadas extraídas do LanIt
     const LatLng _center = LatLng(39.5558, -8.0006); // Mação
     return GoogleMap(
       initialCameraPosition: const CameraPosition(target: _center, zoom: 11.0),
@@ -300,13 +372,128 @@ class MapScreen extends StatelessWidget {
 }
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  final String tokenID;
+  final VoidCallback onLogoutSuccess;
+
+  const ProfileScreen({super.key, required this.tokenID, required this.onLogoutSuccess});
+
+  Future<void> _updateProfileInformation(BuildContext context) async {
+    //TODO
+  }
+
+  Future<void> _changePassword(BuildContext context) async {
+    //TODO
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    //TODO: JWT Token
+    onLogoutSuccess();
+    final url = Uri.parse('https://apdc-2025-individual-66043.oa.r.appspot.com/rest/logout/');
+    try {
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"tokenID": tokenID}),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logout error: $e')),
+      );
+    }
+  }
+
+  Future<void> _requestAccountRemoval(BuildContext context) async {
+    //TODO
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Profile')),
-      body: Center(child: Text('Profile information goes here')),
+      appBar: AppBar(title: Row(
+          mainAxisAlignment:MainAxisAlignment.center,
+          children: [
+            Text(
+              'Profile',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+           ),
+            Icon(
+              Icons.person,
+              size: 45.0,
+            ),
+          ]
+      )),
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  onPressed: () => _updateProfileInformation(context),
+                  child: const Text('Update Profile Information'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  onPressed: () => _changePassword(context),
+                  child: const Text('Change Password'),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  onPressed: () => _logout(context),
+                  child: const Text('Log Out'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  onPressed: () => _requestAccountRemoval(context),
+                  child: const Text('Request Account Removal'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Settings')),
+      body: Center(child: Text('Setting content goes here')),
     );
   }
 }

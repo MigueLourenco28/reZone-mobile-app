@@ -44,6 +44,10 @@ dependencies:
   rename: ^3.1.0
   google_fonts: ^4.0.4
 
+  jwt_decode: ^0.3.1
+
+  shared_preferences: ^2.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -68,7 +72,7 @@ flutter_app_name:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/media/appIcon.png"  # <-- Replace this with your actual icon path
+  image_path: "assets/media/appIcon.png" # App Icon
   adaptive_icon_background: null
   adaptive_icon_foreground: null
 

@@ -53,6 +53,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _isLoggedIn = false;
+  bool _isCheckingLogin = true;
 
   void _onLoginSuccess() {
     setState(() {
@@ -61,10 +62,41 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _onLogoutSuccess() async {
-    await LocalStorageUtil.clearAuthData(); // Clear the auth data of the user using the app
+    await LocalStorageUtil.clearAuthData(); // Clear the data of the user using the app
     setState(() {
       _isLoggedIn = false;
     });
+  }
+
+  // Checks if the token of the user is still valid
+  // Set the log in as true to skip the login screen
+  Future<void> _checkStoredToken() async {
+    final data = await LocalStorageUtil.getAuthData();
+    final token = data['tokenID'];
+    final exp = data['tokenExp'];
+
+    if (token != null && exp != null) {
+      try {
+        bool isExpired = Jwt.isExpired(token);
+        if (!isExpired) {
+          setState(() {
+            _isLoggedIn = true; // Directs user to HomeScreen
+          });
+        }
+      } catch (e) {
+        print("JWT validation failed: $e");
+      }
+    }
+
+    setState(() {
+      _isCheckingLogin = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStoredToken();
   }
 
   @override
@@ -74,9 +106,13 @@ class _MyAppState extends State<MyApp> {
         useMaterial3: true,
         colorSchemeSeed: Colors.green[700],
       ),
-      home: _isLoggedIn
-          ? HomeScreen(onLogoutSuccess: _onLogoutSuccess)
-          : LoginRegisterScreen(onLoginSuccess: _onLoginSuccess),
+      home: _isCheckingLogin
+          ? const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            )
+          : _isLoggedIn
+            ? HomeScreen(onLogoutSuccess: _onLogoutSuccess)
+            : LoginRegisterScreen(onLoginSuccess: _onLoginSuccess),
     );
   }
 }
@@ -94,18 +130,9 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   bool isLoading = false;
   late final int _generatedUserId;
 
-  // Auto Log in
-  Future<void> _loadSession() async {
-    final data = await LocalStorageUtil.getAuthData();
-    if (data['tokenExp'] != null && DateTime.now().millisecondsSinceEpoch < int.parse(data['tokenExp']!)) {
-      widget.onLoginSuccess();
-    }
-  }
-
   @override
   void initState() {
     super.initState();
-    _loadSession(); // Check if the user's session is still valid; if so, it will automatically log them in
     _generatedUserId = Random().nextInt(90000000) + 10000000; // TODO: check if it doesn't already exist
   }
 
@@ -465,7 +492,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String? tokenID, tokenExp, userRole, userID;
-  late final List<Widget> _pages;
+  List<Widget>? _pages;
   int _selectedIndex = 2;
 
   @override
@@ -506,8 +533,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+
+    if (_pages == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
-      body: _pages[_selectedIndex],
+      body: _pages![_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
@@ -518,32 +552,13 @@ class _HomeScreenState extends State<HomeScreen> {
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
-        unselectedLabelStyle: const TextStyle(
-          //fontFamily: 'Handler',
-          fontSize: 12,
-          fontWeight: FontWeight.normal,
-        ),
+        unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.groups),
-            label: 'Community',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.landscape),
-            label: 'Activities',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.groups), label: 'Community'),
+          BottomNavigationBarItem(icon: Icon(Icons.landscape), label: 'Activities'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings')
         ],
       ),
     );
@@ -594,6 +609,48 @@ class ProfileScreen extends StatelessWidget {
 
   const ProfileScreen({super.key, required this.tokenID, required this.tokenExp,
     required this.userRole, required this.userID, required this.onLogoutSuccess});
+
+  Future<void> _showProfileInformation(BuildContext context) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/user/info'),
+        headers: {
+          'Authorization': 'Bearer $tokenID',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> userData = jsonDecode(response.body);
+
+        // Format user data into a readable string
+        final infoText = userData.entries.map((e) => "${e.key}: ${e.value}").join('\n');
+
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Profile Information'),
+            content: SingleChildScrollView(
+              child: SelectableText(infoText),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to fetch profile: ${response.body}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching profile: $e")),
+      );
+    }
+  }
 
   Future<void> _updateProfileInformation(BuildContext context) async {
     //TODO
@@ -743,6 +800,16 @@ class ProfileScreen extends StatelessWidget {
                       fontSize: 20.0,
                     ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  onPressed: () => _showProfileInformation(context),
+                  child: const Text('Profile Information'),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(

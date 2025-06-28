@@ -310,7 +310,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
@@ -324,7 +324,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -396,7 +396,8 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
           labelText: label,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           filled: true,
-          fillColor: Colors.grey[100],
+          fillColor: Theme.of(context).inputDecorationTheme.fillColor ??
+              Theme.of(context).canvasColor,
         ),
       ),
     );
@@ -490,10 +491,10 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         isLoading
             ? const Center(child: CircularProgressIndicator())
             : ElevatedButton(
-          onPressed: attemptRegister,
-          style: _buttonStyle(Colors.blue),
-          child: const Text("Register"),
-        ),
+              onPressed: attemptRegister,
+              style: _buttonStyle(Colors.blue),
+              child: const Text("Register"),
+            ),
       ],
     );
   }
@@ -636,16 +637,94 @@ class ActivitiesScreen extends StatelessWidget {
   }
 }
 
-class MapScreen extends StatelessWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
   @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  bool _menuOpen = false;
+
+  @override
   Widget build(BuildContext context) {
-    //TODO: Adicionar coordenadas extraídas do LandIt
     const LatLng _center = LatLng(39.556664, -7.995860); // Mação
-    return GoogleMap(
-      initialCameraPosition: const CameraPosition(target: _center, zoom: 13),
-      onMapCreated: (_) {},
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          GoogleMap( // Map Screen
+            initialCameraPosition: const CameraPosition(
+              target: _center,
+              zoom: 13,
+            ),
+            onMapCreated: (_) {},
+          ),
+
+          // Hamburger menu toggle
+          Positioned(
+            top: 40,
+            left: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Main hamburger button
+                FloatingActionButton(
+                  heroTag: 'menu',
+                  onPressed: () {
+                    setState(() => _menuOpen = !_menuOpen);
+                  },
+                  backgroundColor: Colors.white,
+                  child: const Icon(Icons.menu, color: Colors.black),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Dropdown buttons
+                if (_menuOpen) ...[
+                  _buildActionButton(
+                    icon: Icons.terrain, // Mountaineering
+                    label: 'Mountaineering',
+                    onPressed: () {
+                      // handle mountaineering action
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildActionButton(
+                    icon: Icons.directions_walk, // Jogging
+                    label: 'Jogging',
+                    onPressed: () {
+                      // handle jogging action
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildActionButton(
+                    icon: Icons.park, // Camping
+                    label: 'Camping',
+                    onPressed: () {
+                      // handle camping action
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return FloatingActionButton(
+      heroTag: label,
+      onPressed: onPressed,
+      backgroundColor: Colors.green[700],
+      child: Icon(icon, color: Colors.white),
     );
   }
 }

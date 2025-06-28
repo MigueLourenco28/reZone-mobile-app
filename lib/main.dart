@@ -47,6 +47,9 @@ class LocalStorageUtil {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  static _MyAppState of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyAppState>()!;
+
   @override
   State<MyApp> createState() => _MyAppState();
 }
@@ -54,6 +57,14 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   bool _isLoggedIn = false;
   bool _isCheckingLogin = true;
+
+  ThemeMode _themeMode = ThemeMode.light;
+
+  void setThemeMode(ThemeMode mode) {
+    setState(() {
+      _themeMode = mode;
+    });
+  }
 
   void _onLoginSuccess() {
     setState(() {
@@ -97,15 +108,21 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _checkStoredToken();
+    _loadSavedTheme();
+  }
+
+  Future<void> _loadSavedTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isDark = prefs.getBool('isDarkMode') ?? false;
+    setThemeMode(isDark ? ThemeMode.dark : ThemeMode.light);
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.green[700],
-      ),
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: _themeMode,
       home: _isCheckingLogin
           ? const Scaffold(
               body: Center(child: CircularProgressIndicator()),
@@ -571,7 +588,22 @@ class CommunityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Community')),
+      appBar: AppBar(title: Row(
+          mainAxisAlignment:MainAxisAlignment.center,
+          children: [
+            Text(
+              'Community',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+            ),
+            Icon(
+              Icons.groups,
+              size: 45.0,
+            ),
+          ]
+      )),
       body: Center(child: Text('Community content goes here')),
     );
   }
@@ -583,7 +615,22 @@ class ActivitiesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Activities')),
+      appBar: AppBar(title: Row(
+          mainAxisAlignment:MainAxisAlignment.center,
+          children: [
+            Text(
+              'Activities',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+            ),
+            Icon(
+              Icons.landscape,
+              size: 45.0,
+            ),
+          ]
+      )),
       body: Center(child: Text('Activity content goes here')),
     );
   }
@@ -595,7 +642,7 @@ class MapScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     //TODO: Adicionar coordenadas extraídas do LandIt
-    const LatLng _center = LatLng(39.5558, -8.0006); // Mação
+    const LatLng _center = LatLng(39.556664, -7.995860); // Mação
     return GoogleMap(
       initialCameraPosition: const CameraPosition(target: _center, zoom: 13),
       onMapCreated: (_) {},
@@ -624,6 +671,8 @@ class ProfileScreen extends StatelessWidget {
 
         // Format user data into a readable string
         final infoText = userData.entries.map((e) => "${e.key}: ${e.value}").join('\n');
+
+        // TODO: Make a better way to show the user data
 
         showDialog(
           context: context,
@@ -876,14 +925,70 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _isDarkMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThemePreference();
+  }
+
+  Future<void> _loadThemePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+    });
+  }
+
+  Future<void> _toggleDarkMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', value);
+    setState(() {
+      _isDarkMode = value;
+    });
+
+    // Trigger a rebuild of the app with new theme
+    final brightness = value ? ThemeMode.dark : ThemeMode.light;
+    MyApp.of(context).setThemeMode(brightness);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Settings')),
-      body: Center(child: Text('Setting content goes here')),
+      appBar: AppBar(title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Settings',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+            ),
+            Icon(
+              Icons.settings,
+              size: 45.0,
+            ),
+          ]
+      )),
+      body: ListView(
+        children: [
+          SwitchListTile(
+            title: const Text("Dark Mode"),
+            value: _isDarkMode,
+            onChanged: _toggleDarkMode,
+            secondary: const Icon(Icons.dark_mode),
+          ),
+        ],
+      ),
     );
   }
 }

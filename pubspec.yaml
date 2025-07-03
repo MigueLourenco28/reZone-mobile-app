@@ -48,13 +48,15 @@ dependencies:
 
   shared_preferences: ^2.2.2
 
+  flutter_svg: ^2.0.9
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  flutter_launcher_icons: ^0.11.0
+  flutter_launcher_icons: ^0.14.4
 
-  flutter_app_name: ^0.1.1
+  flutter_native_splash: ^2.3.10 # Splash Screen
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -68,6 +70,15 @@ dev_dependencies:
 
 flutter_app_name:
   name: "ReZone"
+
+flutter_native_splash:
+  color: "#000000"
+  image: assets/media/splash_logo.png
+  android: true
+  ios: true
+  fullscreen: true
+  branding: assets/media/splash_branding.png
+  branding_mode: bottom
 
 flutter_icons:
   android: true
@@ -105,6 +116,11 @@ flutter:
   assets:
     - assets/media/appLogo.png
     - assets/media/appIcon.png
+    - assets/media/splash_logo.png
+    - assets/media/splash_branding.png
+    - assets/icons/camping.svg
+    - assets/icons/footprint.svg
+    - assets/icons/hiking.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

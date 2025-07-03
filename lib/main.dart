@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:ui';
 import 'package:jwt_decode/jwt_decode.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 //TODO: guardar na base de dados local "util" o user id, token id e expiration date do token
 
@@ -528,7 +530,9 @@ class _HomeScreenState extends State<HomeScreen> {
       userID = data['userID'];
 
       _pages = [
-        const CommunityScreen(),
+        CommunityScreen(
+          tokenID: tokenID!,
+        ),
         const ActivitiesScreen(),
         const MapScreen(),
         ProfileScreen(
@@ -583,15 +587,90 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class CommunityScreen extends StatelessWidget {
-  const CommunityScreen({super.key});
+class CommunityScreen extends StatefulWidget {
+
+  final String tokenID;
+
+  const CommunityScreen({super.key, required this.tokenID});
+
+  @override
+  State<CommunityScreen> createState() => _CommunityScreenState();
+}
+
+class _CommunityScreenState extends State<CommunityScreen> {
+  List<Map<String, String>> publicUsers = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchPublicUsers();
+  }
+
+  Future<void> fetchPublicUsers() async {
+
+    try {
+      final res = await http.get(
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/list/public-users'),
+        headers: {
+          'Authorization': 'Bearer ${widget.tokenID}',
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final List<dynamic> users = jsonDecode(res.body);
+        setState(() {
+          publicUsers = users.map<Map<String, String>>((u) => Map<String, String>.from(u)).toList();
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("Failed to load users: ${res.body}"),
+        ));
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Error fetching public users: $e"),
+      ));
+    }
+  }
+
+  void showUserPopup(Map<String, String> user) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(user['username'] ?? 'Unknown User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (user['fullName'] != null) Text("Full Name: ${user['fullName']}"),
+            if (user['email'] != null) Text("Email: ${user['email']}"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          )
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Row(
-          mainAxisAlignment:MainAxisAlignment.center,
-          children: [
+      appBar: AppBar(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
             Text(
               'Community',
               style: TextStyle(
@@ -603,9 +682,30 @@ class CommunityScreen extends StatelessWidget {
               Icons.groups,
               size: 45.0,
             ),
-          ]
-      )),
-      body: Center(child: Text('Community content goes here')),
+          ],
+        ),
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: publicUsers.length,
+        itemBuilder: (context, index) {
+          final user = publicUsers[index];
+          return Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            child: ListTile(
+              onTap: () => showUserPopup(user),
+              leading: const CircleAvatar(
+                child: Icon(Icons.person),
+              ),
+              title: Text(user['username'] ?? 'Unnamed'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -644,8 +744,30 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
-  bool _menuOpen = false;
+class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixin {
+  bool isMenuOpen = false;
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(_fadeAnimation);
+  }
+
+  void toggleMenu() {
+    setState(() => isMenuOpen = !isMenuOpen);
+    isMenuOpen ? _controller.forward() : _controller.reverse();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -654,59 +776,35 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          GoogleMap( // Map Screen
-            initialCameraPosition: const CameraPosition(
-              target: _center,
-              zoom: 13,
-            ),
-            onMapCreated: (_) {},
+          const GoogleMap( // Display Google Maps
+            initialCameraPosition: CameraPosition(target: _center, zoom: 13),
           ),
 
-          // Hamburger menu toggle
+          // Menu Toggle + Animated Menu (no blur)
           Positioned(
             top: 40,
-            left: 16,
+            left: 20,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Main hamburger button
                 FloatingActionButton(
-                  heroTag: 'menu',
-                  onPressed: () {
-                    setState(() => _menuOpen = !_menuOpen);
-                  },
-                  backgroundColor: Colors.white,
-                  child: const Icon(Icons.menu, color: Colors.black),
+                  heroTag: 'menuToggle',
+                  onPressed: toggleMenu,
+                  child: Icon(
+                    isMenuOpen ? Icons.close : Icons.menu,
+                  ),
                 ),
-
-                const SizedBox(height: 10),
-
-                // Dropdown buttons
-                if (_menuOpen) ...[
-                  _buildActionButton(
-                    icon: Icons.terrain, // Mountaineering
-                    label: 'Mountaineering',
-                    onPressed: () {
-                      // handle mountaineering action
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _buildActionButton(
-                    icon: Icons.directions_walk, // Jogging
-                    label: 'Jogging',
-                    onPressed: () {
-                      // handle jogging action
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _buildActionButton(
-                    icon: Icons.park, // Camping
-                    label: 'Camping',
-                    onPressed: () {
-                      // handle camping action
-                    },
-                  ),
-                ],
+                const SizedBox(height: 12),
+                if (isMenuOpen) // TODO: add animation + make icon color match dark/light mode
+                  Column(
+                    children: [
+                      _buildMenuButton(svgIconPath: 'assets/icons/camping.svg', tag: 'camping', onPressed: () {}),
+                      const SizedBox(height: 8),
+                      _buildMenuButton(svgIconPath: 'assets/icons/footprint.svg', tag: 'jogging', onPressed: () {}),
+                      const SizedBox(height: 8),
+                      _buildMenuButton(svgIconPath: 'assets/icons/hiking.svg', tag: 'mountain', onPressed: () {}),
+                    ],
+                  )
               ],
             ),
           ),
@@ -715,16 +813,19 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
+  Widget _buildMenuButton({
+    String? svgIconPath,
+    IconData? iconData,
+    required String tag,
     required VoidCallback onPressed,
   }) {
     return FloatingActionButton(
-      heroTag: label,
+      heroTag: tag,
+      backgroundColor: Colors.green,
       onPressed: onPressed,
-      backgroundColor: Colors.green[700],
-      child: Icon(icon, color: Colors.white),
+      child: svgIconPath != null
+          ? SvgPicture.asset(svgIconPath, width: 24, height: 24, color: Colors.white)
+          : Icon(iconData, color: Colors.white),
     );
   }
 }

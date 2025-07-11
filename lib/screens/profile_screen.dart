@@ -175,22 +175,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final body = {
-                  "newPrimaryPhone": controllers['Primary Phone']!.text,
-                  "newSecondaryPhone": controllers['Secondary Phone']!.text,
-                  "newAddress": controllers['Address']!.text,
-                  "newPostalCode": controllers['Postal Code']!.text,
-                  "newNationality": controllers['Nationality']!.text,
-                  "newResidenceCountry": controllers['Residence Country']!.text,
-                  "newNIF": controllers['NIF']!.text,
-                  "newCC": controllers['Citizen Card']!.text,
-                  "newCCIssueDate": controllers['CC Issue Date']!.text,
-                  "newCCIssuePlace": controllers['CC Issue Place']!.text,
-                  "newCCValidUntil": controllers['CC Valid Until']!.text,
-                  "newBirthDate": controllers['Birth Date']!.text,
-                  "newEmail": controllers['Email']!.text,
-                  "newFullName": controllers['Full Name']!.text,
+                final fieldMapping = {
+                  'Primary Phone': 'new_phone1',
+                  'Secondary Phone': 'new_phone2',
+                  'Address': 'new_address',
+                  'Postal Code': 'new_postal_code',
+                  'Nationality': 'new_nationality',
+                  'Residence Country': 'new_residence_country',
+                  'NIF': 'new_nif',
+                  'Citizen Card': 'new_cc',
+                  'CC Issue Date': 'new_cc_issue_date',
+                  'CC Issue Place': 'new_cc_issue_place',
+                  'CC Valid Until': 'new_cc_valid_until',
+                  'Birth Date': 'new_birth_date',
+                  'Email': 'new_email',
+                  'Full Name': 'new_full_name',
                 };
+
+                // Build body only with filled fields
+                final Map<String, String> body = {"user": widget.userID};
+                controllers.forEach((label, controller) {
+                  if (controller.text.trim().isNotEmpty) {
+                    final jsonKey = fieldMapping[label];
+                    if (jsonKey != null) {
+                      body[jsonKey] = controller.text.trim();
+                    }
+                  }
+                });
 
                 try {
                   final res = await http.post(
@@ -227,7 +238,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
   }
-
 
   Future<void> _changePassword(BuildContext context) async {
     final currentPasswordController = TextEditingController();

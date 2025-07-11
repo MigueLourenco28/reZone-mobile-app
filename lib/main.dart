@@ -5,6 +5,7 @@ import 'utils/local_storage_util.dart';
 import 'package:jwt_decode/jwt_decode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
@@ -35,19 +36,23 @@ class _MyAppState extends State<MyApp> {
 
   ThemeMode _themeMode = ThemeMode.light;
 
+  Timer? _logoutTimer;
+
   void setThemeMode(ThemeMode mode) {
     setState(() {
       _themeMode = mode;
     });
   }
 
-  void _onLoginSuccess() {
-    setState(() {
-      _isLoggedIn = true;
-    });
+  void _onLoginSuccess() async {
+    await _checkStoredToken();
+    setState(() =>
+      _isLoggedIn = true
+    );
   }
 
   void _onLogoutSuccess() async {
+    _logoutTimer?.cancel();
     await LocalStorageUtil.clearAuthData(); // Clear the data of the user using the app
     setState(() {
       _isLoggedIn = false;
@@ -63,20 +68,46 @@ class _MyAppState extends State<MyApp> {
 
     if (token != null && exp != null) {
       try {
-        bool isExpired = Jwt.isExpired(token);
-        if (!isExpired) {
-          setState(() {
-            _isLoggedIn = true; // Directs user to HomeScreen
-          });
+        final expiryDate = DateTime.fromMillisecondsSinceEpoch(int.parse(exp) * 1000);
+        final now = DateTime.now();
+
+        if (expiryDate.isAfter(now)) {
+          _startAutoLogoutTimer(expiryDate);
+          _isLoggedIn = true;
         }
       } catch (e) {
-        print("JWT validation failed: $e");
+        print("Error validating JWT: $e");
       }
     }
 
-    setState(() {
-      _isCheckingLogin = false;
+    setState(() => _isCheckingLogin = false);
+  }
+
+  void _startAutoLogoutTimer(DateTime expiryDate) {
+    final now = DateTime.now();
+    final duration = expiryDate.difference(now);
+
+    _logoutTimer?.cancel(); // Clear any existing timer
+    _logoutTimer = Timer(duration, () {
+      _onLogoutSuccess();
+      _showSessionExpiredDialog();
     });
+  }
+
+  void _showSessionExpiredDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Session Expired"),
+        content: const Text("Your session has expired. Please log in again."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

@@ -321,31 +321,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _changeProfileVisibility(bool value) async {
-    final profileValue = value ? "PRIVATE" : "PUBLIC";
+    final newProfileValue = value ? "PRIVATE" : "PUBLIC";
 
     try {
       final res = await http.post(
-        Uri.parse('https://rezone-459910.oa.r.appspot.com/change/profile'),
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${widget.tokenID}',
         },
+        body: jsonEncode({"profile": newProfileValue}),
       );
 
       if (res.statusCode == 200) {
         setState(() {
-          isPrivate = !isPrivate;
+          isPrivate = value;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profile changed to $profileValue')),
+          SnackBar(content: Text('Profile changed to $newProfileValue')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to change profile visibility: ${res.body}' )),
+          SnackBar(content: Text('Failed to change profile visibility: ${res.body}')),
         );
       }
     } catch (e) {
-      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
       );
@@ -358,7 +358,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _requestAccountRemoval(BuildContext context) async {
-    //TODO
+    try {
+      final res = await http.post(
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/remove/request'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.tokenID}',
+        },
+      );
+
+      if (res.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Request sent successfully.')),
+        );
+        widget.onLogoutSuccess();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to request account removal: ${res.body}' )),
+        );
+      }
+    } catch (e) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
   }
 
   @override

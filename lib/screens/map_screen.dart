@@ -19,14 +19,16 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final String tokenID;
+  const MapScreen({super.key, required this.tokenID});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
 class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixin {
-  bool isMenuOpen = false;
+  bool isActivitiesMenuOpen = false;
+  bool isWorksheetsMenuOpen = false;
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -39,9 +41,14 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(_fadeAnimation);
   }
 
-  void toggleMenu() {
-    setState(() => isMenuOpen = !isMenuOpen);
-    isMenuOpen ? _controller.forward() : _controller.reverse();
+  void toggleActivitiesMenu() {
+    setState(() => isActivitiesMenuOpen = !isActivitiesMenuOpen);
+    isActivitiesMenuOpen ? _controller.forward() : _controller.reverse();
+  }
+
+  void toggleWorksheetsMenu() {
+    setState(() => isWorksheetsMenuOpen = !isWorksheetsMenuOpen);
+    isWorksheetsMenuOpen ? _controller.forward() : _controller.reverse();
   }
 
   @override
@@ -70,20 +77,61 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
               children: [
                 FloatingActionButton(
                   heroTag: 'menuToggle',
-                  onPressed: toggleMenu,
+                  onPressed: toggleActivitiesMenu,
                   child: Icon(
-                    isMenuOpen ? Icons.close : Icons.menu,
+                    isActivitiesMenuOpen ? Icons.close : Icons.menu,
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (isMenuOpen) // TODO: add animation + make icon color match dark/light mode
+                if (isActivitiesMenuOpen) // TODO: add animation + make icon color match dark/light mode
                   Column(
                     children: [
-                      _buildMenuButton(svgIconPath: 'assets/icons/camping.svg', tag: 'camping', onPressed: () {}),
+                      _buildMenuButton(
+                          svgIconPath: 'assets/icons/camping.svg',
+                          tag: 'camping',
+                          onPressed: () {
+                            // TODO: Filtrar folhas de execução e mostrar no mapa as zonas
+                            // que foram transformadas há mais tempo para poder acampar
+                          }),
                       const SizedBox(height: 8),
-                      _buildMenuButton(svgIconPath: 'assets/icons/footprint.svg', tag: 'jogging', onPressed: () {}),
+                      _buildMenuButton(
+                          svgIconPath: 'assets/icons/footprint.svg',
+                          tag: 'jogging',
+                          onPressed: () {
+                            // TODO: Filtrar folhas de execução e mostrar no mapa as zonas
+                            // que foram transformadas há não tanto tempo mas da para caminhar
+                          }),
                       const SizedBox(height: 8),
-                      _buildMenuButton(svgIconPath: 'assets/icons/hiking.svg', tag: 'mountain', onPressed: () {}),
+                      _buildMenuButton(
+                          svgIconPath: 'assets/icons/hiking.svg',
+                          tag: 'mountain',
+                          onPressed: () {
+                            //TODO:
+                          }),
+                    ],
+                  )
+              ],
+            ),
+          ),
+          // Apagar para depois meter no menu de cima (o da esquerda)
+          Positioned(
+            top: 40,
+            right: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'menuToggle',
+                  onPressed: toggleWorksheetsMenu,
+                  child: Icon(
+                    isWorksheetsMenuOpen ? Icons.close : Icons.description,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (isWorksheetsMenuOpen) // TODO: add animation + make icon color match dark/light mode
+                  Column(
+                    children: [
+                      // TODO: Listas Folhas de execução
                     ],
                   )
               ],

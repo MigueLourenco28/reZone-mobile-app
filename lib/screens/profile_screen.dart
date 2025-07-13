@@ -438,7 +438,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 12),
                       SwitchListTile(
-                        title: const Text("Private Profile"),
+                        title: const Text("Profile Privacy"),
                         subtitle: Text(
                           isPrivate ? "Your profile is PRIVATE" : "Your profile is PUBLIC",
                           style: const TextStyle(fontSize: 13),

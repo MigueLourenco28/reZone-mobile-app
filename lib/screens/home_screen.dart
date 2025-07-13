@@ -49,7 +49,9 @@ class _HomeScreenState extends State<HomeScreen> {
         CommunityScreen(
           tokenID: tokenID!,
         ),
-        const ActivitiesScreen(),
+        ActivitiesScreen(
+          tokenID: tokenID!,
+        ),
         MapScreen(
           tokenID: tokenID!,
         ),

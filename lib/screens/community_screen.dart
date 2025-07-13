@@ -105,7 +105,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     try {
 
       final res = await http.post(
-        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/friends/$friend'),
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/friends/add/$friend'),
         headers: {'Authorization': 'Bearer ${widget.tokenID}'},
       );
 
@@ -126,7 +126,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   Future<void> removeFriend(String friend) async {
-    //TODO
+    try {
+
+      final res = await http.post(
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/friends/remove/$friend'),
+        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
+      );
+
+      if (res.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Friend removed successfully")),
+        );
+        userFriends.remove({'username': friend});
+      } else {
+        throw Exception('Failed: ${res.body}');
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error removing friend: $e")),
+      );
+    }
   }
 
   // Check if a user is a friend
@@ -167,7 +187,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   isFriend(user['username']!)
                       ? ElevatedButton.icon(
                     onPressed: () {
-                      // TODO: implement removeFriend
+                      removeFriend(user['username']!);
                       Navigator.pop(context);
                     },
                     icon: const Icon(Icons.person_remove),

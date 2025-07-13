@@ -20,7 +20,8 @@ import 'package:http/http.dart' as http;
 
 class ActivitiesScreen extends StatefulWidget {
   final String tokenID;
-  const ActivitiesScreen({super.key, required this.tokenID});
+  final VoidCallback onLogoutSuccess;
+  const ActivitiesScreen({super.key, required this.tokenID, required this.onLogoutSuccess});
 
   @override
   State<ActivitiesScreen> createState() => _ActivitiesScreenState();
@@ -34,8 +35,33 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   @override
   void initState() {
     super.initState();
+    checkTokenExp();
     decodeToken();
     fetchActivities();
+  }
+
+  void checkTokenExp() async {
+    // Check if the token is still valid, if not, redirect to login page;
+    void checkToken() async {
+      final authData = await LocalStorageUtil.getAuthData();
+      final tokenExp = authData['tokenExp'];
+
+      if (tokenExp == null) {
+        // No expiration info, redirect to login
+        Navigator.pushReplacementNamed(context, '/');
+        return;
+      }
+
+      final expiration = int.tryParse(tokenExp);
+      if (expiration == null) {
+        Navigator.pushReplacementNamed(context, '/');
+        return;
+      }
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      if (now >= expiration) {
+        widget.onLogoutSuccess();
+      }
+    }
   }
 
   void decodeToken() {

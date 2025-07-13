@@ -281,11 +281,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 final confirm = confirmPasswordController.text;
 
                 if (newPass != confirm) {
-                  Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("New passwords do not match.")),
                   );
-                  return; // TODO: reset form and not exit
+                  newPasswordController.clear();
+                  confirmPasswordController.clear();
+                  return;
                 }
 
                 final body = {
@@ -295,6 +296,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 };
 
                 try {
+
                   final res = await http.post(
                     Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/password'),
                     headers: {
@@ -488,6 +490,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: const Icon(Icons.lock_reset),
                 label: const Text('Change Password'),
               ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                ),
+                onPressed: () => _checkAccountStatus(),
+                icon: const Icon(Icons.info_outline),
+                label: const Text('Check Account Status'),
+              ),
+              _buildAdminSection(), // This line activates the admin section
               const SizedBox(height: 30),
               const Divider(thickness: 1.5),
               const SizedBox(height: 16),
@@ -517,4 +531,344 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+// Admin Section with all buttons, shown only if userRole is SYSADMIN or SYSBO
+
+  Widget _buildAdminSection() {
+    if (widget.userRole != 'SYSADMIN' && widget.userRole != 'SYSBO') {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 30),
+        const Text('Admin Operations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        const Divider(thickness: 1.2),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+          ),
+          onPressed: _changeUserRoleDialog,
+          icon: const Icon(Icons.admin_panel_settings),
+          label: const Text('Change User Role'),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+          ),
+          onPressed: () => _listUsers(),
+          icon: const Icon(Icons.list_alt),
+          label: const Text('List Users'),
+        ),
+
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+          ),
+          onPressed: () => _toggleAccountState(),
+          icon: const Icon(Icons.check_circle),
+          label: const Text('Activate/Deactivate Account'),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+          ),
+          onPressed: () => _postSimpleAction('Check User', '/rest/change/checkprofile', 'user'),
+          icon: const Icon(Icons.person),
+          label: const Text('Check Profile'),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+          ),
+          onPressed: () => _suspendUserDialog(),
+          icon: const Icon(Icons.block),
+          label: const Text('Suspend Account'),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+          ),
+          onPressed: () => _postSimpleAction('Remove User', '/rest/remove/confirm', 'user'),
+          icon: const Icon(Icons.person_remove),
+          label: const Text('Remove User Account'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _changeUserRoleDialog() async {
+    final usernameController = TextEditingController();
+    String selectedRole = 'RU';
+
+    await showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Change User Role'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: usernameController, decoration: const InputDecoration(labelText: 'Username')),
+              DropdownButton<String>(
+                value: selectedRole,
+                items: ['SYSADMIN','SYSBO','SMBO','SGVBO','SDVBO','PRBO','ADLU','PO','RU','VU']
+                    .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                    .toList(),
+                onChanged: (val) => setState(() => selectedRole = val ?? 'RU'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                final res = await http.post(
+                  Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/changerole'),
+                  headers: {
+                    'Authorization': 'Bearer ${widget.tokenID}',
+                    'Content-Type': 'application/json',
+                  },
+                  body: jsonEncode({
+                    'user': usernameController.text.trim(),
+                    'new_role': selectedRole
+                  }),
+                );
+                Navigator.pop(context);
+                final msg = res.statusCode == 200 ? 'Role changed successfully.' : 'Failed: ${res.body}';
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              },
+              child: const Text('Submit'),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleAccountState() async {
+    final usernameController = TextEditingController();
+    String selectedState = 'ACTIVE';
+
+    await showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Toggle Account State'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: usernameController,
+                decoration: const InputDecoration(labelText: 'Username'),
+              ),
+              DropdownButton<String>(
+                value: selectedState,
+                items: ['ACTIVE', 'INACTIVE']
+                    .map((state) => DropdownMenuItem(value: state, child: Text(state)))
+                    .toList(),
+                onChanged: (val) => setState(() => selectedState = val ?? 'ACTIVE'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final username = usernameController.text.trim();
+                if (username.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a username.')),
+                  );
+                  return;
+                }
+
+                try {
+                  final res = await http.post(
+                    Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/state'),
+                    headers: {
+                      'Authorization': 'Bearer ${widget.tokenID}',
+                      'Content-Type': 'application/json',
+                    },
+                    body: jsonEncode({
+                      'user': username,
+                      'new_state': selectedState,
+                    }),
+                  );
+                  Navigator.pop(context);
+                  final msg = res.statusCode == 200
+                      ? 'Account state changed to $selectedState.'
+                      : 'Failed: ${res.body}';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(msg)),
+                  );
+                } catch (e) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _postSimpleAction(String title, String endpoint, String paramKey) async {
+    final controller = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: TextField(controller: controller, decoration: InputDecoration(labelText: paramKey)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final res = await http.post(
+                Uri.parse('https://rezone-459910.oa.r.appspot.com$endpoint'),
+                headers: {
+                  'Authorization': 'Bearer ${widget.tokenID}',
+                  'Content-Type': 'application/json',
+                },
+                body: jsonEncode({paramKey: controller.text.trim()}),
+              );
+              Navigator.pop(context);
+              final msg = res.statusCode == 200 ? 'Success' : 'Failed: ${res.body}';
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+            },
+            child: const Text('Submit'),
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _suspendUserDialog() async {
+    final usernameController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Suspend User'),
+        content: TextField(controller: usernameController, decoration: const InputDecoration(labelText: 'Username')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final res = await http.post(
+                Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/state'),
+                headers: {
+                  'Authorization': 'Bearer ${widget.tokenID}',
+                  'Content-Type': 'application/json',
+                },
+                body: jsonEncode({
+                  'user': usernameController.text.trim(),
+                  'new_state': 'SUSPENDED'
+                }),
+              );
+              Navigator.pop(context);
+              final msg = res.statusCode == 200 ? 'User suspended.' : 'Failed: ${res.body}';
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+            },
+            child: const Text('Suspend'),
+
+
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _checkAccountStatus() async {
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Check Account Status'),
+        content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'Username')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final username = controller.text.trim();
+              final uri = Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/user/status?username=$username');
+              final res = await http.get(uri, headers: {'Authorization': 'Bearer ${widget.tokenID}'});
+              Navigator.pop(context);
+              final msg = res.statusCode == 200 ? res.body : 'Failed: ${res.body}';
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Account Status'),
+                  content: SingleChildScrollView(child: SelectableText(msg)),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+                  ],
+                ),
+              );
+            },
+            child: const Text('Check'),
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _listUsers() async {
+    try {
+      final res = await http.get(
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/users/list'),
+        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
+      );
+      if (res.statusCode == 200) {
+        final users = jsonDecode(res.body);
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('All Registered Users'),
+            content: SingleChildScrollView(child: Text(users.toString())),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${res.body}')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+// --- Then call this inside your build() where needed ---
+// e.g., below your main column:
+// children: [..., _buildAdminSection()]
+
+
 }

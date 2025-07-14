@@ -8,13 +8,8 @@ import 'profile_screen.dart';
 import 'settings_screen.dart';
 
 import 'dart:convert';
-import 'dart:math';
-import 'dart:ui';
 import 'package:jwt_decode/jwt_decode.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
@@ -36,8 +31,8 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   void initState() {
     super.initState();
     checkTokenExp();
-    decodeToken();
-    fetchActivities();
+    decodeUsername();
+    fetchUserActivities();
   }
 
   void checkTokenExp() async {
@@ -64,16 +59,24 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     }
   }
 
-  void decodeToken() {
-    final payload = Jwt.parseJwt(widget.tokenID);
+  void decodeUsername() {
+    final parts = widget.tokenID.split('.');
+    if (parts.length != 3) return;
+    final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
     currentUsername = payload['sub'];
   }
 
-  Future<void> fetchActivities() async {
+  Future<void> fetchUserActivities() async {
     try {
+      final token = widget.tokenID;
+      final parts = token.split('.');
+      if (parts.length != 3) throw Exception('Invalid JWT format');
+      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+      currentUsername = payload['sub'];
+
       final res = await http.get(
         Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/activities/list'),
-        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
+        headers: {'Authorization': 'Bearer $token'},
       );
 
       if (res.statusCode == 200) {
@@ -93,15 +96,6 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     }
   }
 
-  IconData getIcon(String type) {
-    switch (type.toUpperCase()) {
-      case 'CAMPING': return Icons.park;
-      case 'JOGGING': return Icons.directions_run;
-      case 'CLIMBING': return Icons.terrain;
-      default: return Icons.nature_people;
-    }
-  }
-
   void showActivityPopup(Map<String, String> activity) {
     showDialog(
       context: context,
@@ -112,16 +106,26 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(getIcon(activity['activityType'] ?? ''), size: 60, color: Colors.green),
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: Colors.green,
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: getActivityIcon(activity['activityType'] ?? 'CAMPING', color: Colors.white),
+                ),
+              ),
               const SizedBox(height: 12),
-              Text("${activity['activityType']} with ${activity['friendUserName']}",
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(
+                '${activity['activityType']} with ${activity['friendUserName']}',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
-              infoRow(Icons.calendar_today, 'Date', activity['activityDate']),
-              infoRow(Icons.access_time, 'Time', activity['activityTime']),
-              infoRow(Icons.place, 'Place', activity['activityPlace']),
+              infoRow(Icons.calendar_today, "Date: ${activity['activityDate']}"),
+              infoRow(Icons.access_time, "Time: ${activity['activityTime']}"),
+              infoRow(Icons.place, "Place: ${activity['activityPlace']}"),
               const SizedBox(height: 20),
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close"))
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
             ],
           ),
         ),
@@ -129,79 +133,37 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     );
   }
 
-  Widget infoRow(IconData icon, String label, String? value) {
-    return Row(
-      children: [Icon(icon), const SizedBox(width: 8), Text("$label: ${value ?? 'N/A'}")],
+  Widget infoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.grey[700]),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text)),
+        ],
+      ),
     );
   }
 
-  void showAddActivityPopup() {
-    final friendController = TextEditingController();
-    final typeController = TextEditingController();
-    final dateController = TextEditingController();
-    final timeController = TextEditingController();
-    final placeController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text("New Activity", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                TextField(controller: friendController, decoration: const InputDecoration(labelText: 'Friend Username')),
-                TextField(controller: typeController, decoration: const InputDecoration(labelText: 'Activity Type')),
-                TextField(controller: dateController, decoration: const InputDecoration(labelText: 'Date (dd/MM/yyyy)')),
-                TextField(controller: timeController, decoration: const InputDecoration(labelText: 'Time (HH:mm)')),
-                TextField(controller: placeController, decoration: const InputDecoration(labelText: 'Place (lat, lng)')),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    final newActivity = {
-                      "username": currentUsername,
-                      "friendUserName": friendController.text,
-                      "activityType": typeController.text.toUpperCase(),
-                      "activityDate": dateController.text,
-                      "activityTime": timeController.text,
-                      "activityPlace": placeController.text
-                    };
-                    final res = await http.post(
-                      Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/activities/'),
-                      headers: {
-                        'Authorization': 'Bearer ${widget.tokenID}',
-                        'Content-Type': 'application/json'
-                      },
-                      body: jsonEncode(newActivity),
-                    );
-                    if (res.statusCode == 200) {
-                      Navigator.pop(context);
-                      fetchActivities();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Activity added!")));
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Failed to add activity: ${res.body}")));
-                    }
-                  },
-                  child: const Text("Create Activity"),
-                )
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  Widget getActivityIcon(String type, {Color color = Colors.green}) {
+    switch (type.toUpperCase()) {
+      case 'CAMPING':
+        return SvgPicture.asset('assets/icons/camping.svg', color: color);
+      case 'JOGGING':
+        return SvgPicture.asset('assets/icons/footprint.svg', color: color);
+      case 'CLIMBING':
+        return SvgPicture.asset('assets/icons/hiking.svg', color: color);
+      default:
+        return Icon(Icons.nature, color: color);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Friend Activities", style: TextStyle(fontFamily: 'Handler', fontSize: 28)),
+        title: const Text("Activities", style: TextStyle(fontFamily: 'Handler', fontSize: 32)),
         centerTitle: true,
       ),
       body: isLoading
@@ -218,18 +180,16 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
             margin: const EdgeInsets.symmetric(vertical: 8),
             child: ListTile(
               onTap: () => showActivityPopup(activity),
-              leading: Icon(getIcon(activity['activityType'] ?? ''), size: 36, color: Colors.green),
-              title: Text("${activity['activityType']} with ${activity['friendUserName']}", style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(activity['activityDate'] ?? ''),
-              trailing: const Icon(Icons.info_outline),
+              leading: SizedBox(
+                width: 36,
+                height: 36,
+                child: getActivityIcon(activity['activityType'] ?? '', color: Colors.green),
+              ),
+              title: Text("${activity['activityType']} with ${activity['friendUserName']}", style: const TextStyle(fontWeight: FontWeight.w500)),
+              trailing: Text(activity['activityDate'] ?? ''),
             ),
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: showAddActivityPopup,
-        backgroundColor: Colors.green,
-        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

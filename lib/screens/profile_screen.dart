@@ -586,7 +586,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(50),
           ),
-          onPressed: () => _postSimpleAction('Check User', '/rest/change/checkprofile', 'user'),
+          onPressed: () => _postSimpleAction('Check Profile', '/rest/change/checkprofile', 'username'),
           icon: const Icon(Icons.person),
           label: const Text('Check Profile'),
         ),
@@ -707,14 +707,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 try {
                   final res = await http.post(
-                    Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/state'),
+                    Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/activate'),
                     headers: {
                       'Authorization': 'Bearer ${widget.tokenID}',
                       'Content-Type': 'application/json',
                     },
                     body: jsonEncode({
-                      'user': username,
-                      'new_state': selectedState,
+                      'username': usernameController.text.trim(),
+                      'state': selectedState,
                     }),
                   );
                   Navigator.pop(context);
@@ -783,14 +783,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             onPressed: () async {
               final res = await http.post(
-                Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/state'),
+                Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/suspend'),
                 headers: {
                   'Authorization': 'Bearer ${widget.tokenID}',
                   'Content-Type': 'application/json',
                 },
                 body: jsonEncode({
-                  'user': usernameController.text.trim(),
-                  'new_state': 'SUSPENDED'
+                  'username': usernameController.text.trim(),
+                  'state': 'SUSPENDED'
                 }),
               );
               Navigator.pop(context);
@@ -841,29 +841,143 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _listUsers() async {
-    try {
-      final res = await http.get(
-        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/users/list'),
-        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
-      );
-      if (res.statusCode == 200) {
-        final users = jsonDecode(res.body);
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('All Registered Users'),
-            content: SingleChildScrollView(child: Text(users.toString())),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
-            ],
+    String selectedRole = '';
+    String selectedState = '';
+    String selectedProfile = '';
+    List<dynamic> users = [];
+    bool isLoading = false;
+    String errorMessage = '';
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('All Registered Users'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Filters row
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Role'),
+                        value: selectedRole.isEmpty ? null : selectedRole,
+                        items: [
+                          '', 'SYSADMIN', 'SYSBO', 'SMBO', 'SGVBO',
+                          'SDVBO', 'PRBO', 'ADLU', 'PO', 'RU', 'VU',
+                        ]
+                            .map((r) => DropdownMenuItem(
+                          value: r,
+                          child: Text(r.isEmpty ? 'Any' : r),
+                        ))
+                            .toList(),
+                        onChanged: (v) => setState(() => selectedRole = v ?? ''),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'State'),
+                        value: selectedState.isEmpty ? null : selectedState,
+                        items: ['', 'INACTIVE', 'SUSPENDED']
+                            .map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s.isEmpty ? 'Any' : s),
+                        ))
+                            .toList(),
+                        onChanged: (v) => setState(() => selectedState = v ?? ''),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Profile'),
+                        value: selectedProfile.isEmpty ? null : selectedProfile,
+                        items: ['', 'PRIVATE', 'PUBLIC']
+                            .map((p) => DropdownMenuItem(
+                          value: p,
+                          child: Text(p.isEmpty ? 'Any' : p),
+                        ))
+                            .toList(),
+                        onChanged: (v) => setState(() => selectedProfile = v ?? ''),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Apply Filters button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      setState(() {
+                        isLoading = true;
+                        errorMessage = '';
+                      });
+                      try {
+                        final uri = Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/list/users').replace(queryParameters: {
+                          if (selectedRole.isNotEmpty) 'role': selectedRole,
+                          if (selectedState.isNotEmpty) 'state': selectedState,
+                          if (selectedProfile.isNotEmpty) 'profile': selectedProfile,
+                        });
+                        final res = await http.get(uri, headers: {'Authorization': 'Bearer ${widget.tokenID}'});
+                        if (res.statusCode == 200) {
+                          setState(() {
+                            users = jsonDecode(res.body);
+                            isLoading = false;
+                          });
+                        } else {
+                          throw Exception(res.body);
+                        }
+                      } catch (e) {
+                        setState(() {
+                          isLoading = false;
+                          errorMessage = 'Error: $e';
+                        });
+                      }
+                    },
+                    child: const Text('Apply Filters'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Error message
+                if (errorMessage.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(errorMessage, style: const TextStyle(color: Colors.red)),
+                  ),
+                // List of users or loading indicator
+                if (isLoading)
+                  const Center(child: CircularProgressIndicator())
+                else if (users.isEmpty)
+                  const Text('No users found.')
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: users.length,
+                    itemBuilder: (_, i) {
+                      final u = users[i] as Map<String, dynamic>;
+                      return ListTile(
+                        title: Text(u['username'] ?? ''),
+                        subtitle: Text(u['email'] ?? ''),
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${res.body}')));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
 // --- Then call this inside your build() where needed ---

@@ -48,10 +48,15 @@ class _HomeScreenState extends State<HomeScreen> {
       _pages = [
         CommunityScreen(
           tokenID: tokenID!,
+          onLogoutSuccess: widget.onLogoutSuccess,
         ),
-        const ActivitiesScreen(),
+        ActivitiesScreen(
+          tokenID: tokenID!,
+          onLogoutSuccess: widget.onLogoutSuccess,
+        ),
         MapScreen(
           tokenID: tokenID!,
+          onLogoutSuccess: widget.onLogoutSuccess,
         ),
         ProfileScreen(
           tokenID: tokenID!,
@@ -60,7 +65,9 @@ class _HomeScreenState extends State<HomeScreen> {
           userID: userID!,
           onLogoutSuccess: widget.onLogoutSuccess,
         ),
-        const SettingsScreen(),
+        SettingsScreen(
+          onLogoutSuccess: widget.onLogoutSuccess,
+        ),
       ];
     });
   }

@@ -20,7 +20,8 @@ import 'package:http/http.dart' as http;
 
 class MapScreen extends StatefulWidget {
   final String tokenID;
-  const MapScreen({super.key, required this.tokenID});
+  final VoidCallback onLogoutSuccess;
+  const MapScreen({super.key, required this.tokenID, required this.onLogoutSuccess});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -28,7 +29,6 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixin {
   bool isActivitiesMenuOpen = false;
-  bool isWorksheetsMenuOpen = false;
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -36,19 +36,39 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    checkTokenExp();
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(_fadeAnimation);
   }
 
+  void checkTokenExp() async {
+    // Check if the token is still valid, if not, redirect to login page;
+    void checkToken() async {
+      final authData = await LocalStorageUtil.getAuthData();
+      final tokenExp = authData['tokenExp'];
+
+      if (tokenExp == null) {
+        // No expiration info, redirect to login
+        Navigator.pushReplacementNamed(context, '/');
+        return;
+      }
+
+      final expiration = int.tryParse(tokenExp);
+      if (expiration == null) {
+        Navigator.pushReplacementNamed(context, '/');
+        return;
+      }
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      if (now >= expiration) {
+        widget.onLogoutSuccess();
+      }
+    }
+  }
+
   void toggleActivitiesMenu() {
     setState(() => isActivitiesMenuOpen = !isActivitiesMenuOpen);
     isActivitiesMenuOpen ? _controller.forward() : _controller.reverse();
-  }
-
-  void toggleWorksheetsMenu() {
-    setState(() => isWorksheetsMenuOpen = !isWorksheetsMenuOpen);
-    isWorksheetsMenuOpen ? _controller.forward() : _controller.reverse();
   }
 
   @override
@@ -112,31 +132,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   )
               ],
             ),
-          ),
-          // Apagar para depois meter no menu de cima (o da esquerda)
-          Positioned(
-            top: 40,
-            right: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                FloatingActionButton(
-                  heroTag: 'menuToggle',
-                  onPressed: toggleWorksheetsMenu,
-                  child: Icon(
-                    isWorksheetsMenuOpen ? Icons.close : Icons.description,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (isWorksheetsMenuOpen) // TODO: add animation + make icon color match dark/light mode
-                  Column(
-                    children: [
-                      // TODO: Listas Folhas de execução
-                    ],
-                  )
-              ],
-            ),
-          ),
+          )
         ],
       ),
     );

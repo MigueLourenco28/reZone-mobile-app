@@ -19,7 +19,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final VoidCallback onLogoutSuccess;
+  const SettingsScreen({super.key, required this.onLogoutSuccess});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -31,7 +32,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    checkTokenExp();
     _loadThemePreference();
+  }
+
+  void checkTokenExp() async {
+    // Check if the token is still valid, if not, redirect to login page;
+    void checkToken() async {
+      final authData = await LocalStorageUtil.getAuthData();
+      final tokenExp = authData['tokenExp'];
+
+      if (tokenExp == null) {
+        // No expiration info, redirect to login
+        Navigator.pushReplacementNamed(context, '/');
+        return;
+      }
+
+      final expiration = int.tryParse(tokenExp);
+      if (expiration == null) {
+        Navigator.pushReplacementNamed(context, '/');
+        return;
+      }
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      if (now >= expiration) {
+        widget.onLogoutSuccess();
+      }
+    }
   }
 
   Future<void> _loadThemePreference() async {

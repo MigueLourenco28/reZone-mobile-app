@@ -395,6 +395,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _requestAccountRemoval(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirm Account Removal'),
+          content: const Text(
+            'Are you sure you want to request account removal?\nThis action may deactivate your account permanently.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user cancels, exit early
+    if (confirmed != true) return;
+
     try {
       final res = await http.post(
         Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/remove/request'),
@@ -405,17 +431,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (res.statusCode == 200) {
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Request sent successfully.')),
+          const SnackBar(content: Text('Request sent successfully.')),
         );
         widget.onLogoutSuccess();
       } else {
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to request account removal: ${res.body}' )),
+          SnackBar(content: Text('Failed to request account removal: ${res.body}')),
         );
       }
     } catch (e) {
-      Navigator.of(context).pop();
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
       );
@@ -611,7 +639,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(50),
           ),
-          onPressed: () => _postSimpleAction('Check Profile', '/rest/change/checkprofile', 'username'),
+          onPressed: () => _checkUserProfile(),
           icon: const Icon(Icons.person),
           label: const Text('Check Profile'),
         ),
@@ -837,26 +865,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Check Account Status'),
-        content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'Username')),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Username'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final username = controller.text.trim();
-              final uri = Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/user/status?username=$username');
-              final res = await http.get(uri, headers: {'Authorization': 'Bearer ${widget.tokenID}'});
-              Navigator.pop(context);
-              final msg = res.statusCode == 200 ? res.body : 'Failed: ${res.body}';
-              showDialog(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text('Account Status'),
-                  content: SingleChildScrollView(child: SelectableText(msg)),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
-                  ],
-                ),
-              );
+              if (username.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a username')),
+                );
+                return;
+              }
+
+              final uri = Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/checkstatus');
+              final headers = {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ${widget.tokenID}',
+              };
+              final body = jsonEncode({'username': username});
+
+              Navigator.pop(context); // Close input dialog first
+
+              try {
+                final res = await http.post(uri, headers: headers, body: body);
+                String msg;
+                if (res.statusCode == 200) {
+                  final data = jsonDecode(res.body);
+                  msg = 'Username: ${data['username']}\n'
+                      'Email: ${data['email']}\n'
+                      'Account State: ${data['state']}';
+                } else {
+                  msg = 'Failed: ${res.body}';
+                }
+
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Account Status'),
+                    content: SingleChildScrollView(child: SelectableText(msg)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              } catch (e) {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Error'),
+                    content: Text(e.toString()),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              }
             },
             child: const Text('Check'),
           )
@@ -865,149 +941,232 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _listUsers() async {
-    String selectedRole = '';
-    String selectedState = '';
-    String selectedProfile = '';
-    List<dynamic> users = [];
-    bool isLoading = false;
-    String errorMessage = '';
 
+  Future<void> _checkUserProfile() async {
+    final controller = TextEditingController();
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('All Registered Users'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Filters row
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(labelText: 'Role'),
-                        value: selectedRole.isEmpty ? null : selectedRole,
-                        items: [
-                          '', 'SYSADMIN', 'SYSBO', 'SMBO', 'SGVBO',
-                          'SDVBO', 'PRBO', 'ADLU', 'PO', 'RU', 'VU',
-                        ]
-                            .map((r) => DropdownMenuItem(
-                          value: r,
-                          child: Text(r.isEmpty ? 'Any' : r),
-                        ))
-                            .toList(),
-                        onChanged: (v) => setState(() => selectedRole = v ?? ''),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(labelText: 'State'),
-                        value: selectedState.isEmpty ? null : selectedState,
-                        items: ['', 'INACTIVE', 'SUSPENDED']
-                            .map((s) => DropdownMenuItem(
-                          value: s,
-                          child: Text(s.isEmpty ? 'Any' : s),
-                        ))
-                            .toList(),
-                        onChanged: (v) => setState(() => selectedState = v ?? ''),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(labelText: 'Profile'),
-                        value: selectedProfile.isEmpty ? null : selectedProfile,
-                        items: ['', 'PRIVATE', 'PUBLIC']
-                            .map((p) => DropdownMenuItem(
-                          value: p,
-                          child: Text(p.isEmpty ? 'Any' : p),
-                        ))
-                            .toList(),
-                        onChanged: (v) => setState(() => selectedProfile = v ?? ''),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Apply Filters button
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      setState(() {
-                        isLoading = true;
-                        errorMessage = '';
-                      });
-                      try {
-                        final uri = Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/list/users').replace(queryParameters: {
-                          if (selectedRole.isNotEmpty) 'role': selectedRole,
-                          if (selectedState.isNotEmpty) 'state': selectedState,
-                          if (selectedProfile.isNotEmpty) 'profile': selectedProfile,
-                        });
-                        final res = await http.get(uri, headers: {'Authorization': 'Bearer ${widget.tokenID}'});
-                        if (res.statusCode == 200) {
-                          setState(() {
-                            users = jsonDecode(res.body);
-                            isLoading = false;
-                          });
-                        } else {
-                          throw Exception(res.body);
-                        }
-                      } catch (e) {
-                        setState(() {
-                          isLoading = false;
-                          errorMessage = 'Error: $e';
-                        });
-                      }
-                    },
-                    child: const Text('Apply Filters'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Error message
-                if (errorMessage.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(errorMessage, style: const TextStyle(color: Colors.red)),
-                  ),
-                // List of users or loading indicator
-                if (isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else if (users.isEmpty)
-                  const Text('No users found.')
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: users.length,
-                    itemBuilder: (_, i) {
-                      final u = users[i] as Map<String, dynamic>;
-                      return ListTile(
-                        title: Text(u['username'] ?? ''),
-                        subtitle: Text(u['email'] ?? ''),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
-            ),
-          ],
+      builder: (_) => AlertDialog(
+        title: const Text('Check Profile Visibility'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Username'),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final username = controller.text.trim();
+              if (username.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a username')),
+                );
+                return;
+              }
+
+              final uri = Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/checkprofile');
+              final headers = {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ${widget.tokenID}',
+              };
+              final body = jsonEncode({'username': username});
+
+              Navigator.pop(context); // Close input dialog
+
+              try {
+                final res = await http.post(uri, headers: headers, body: body);
+                String msg;
+                if (res.statusCode == 200) {
+                  final data = jsonDecode(res.body);
+                  msg = 'Username: ${data['username']}\n'
+                      'Email: ${data['email']}\n'
+                      'Profile Visibility: ${data['profile']}';
+                } else {
+                  msg = 'Failed: ${res.body}';
+                }
+
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Profile Visibility'),
+                    content: SingleChildScrollView(child: SelectableText(msg)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              } catch (e) {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Error'),
+                    content: Text(e.toString()),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
+            child: const Text('Check'),
+          ),
+        ],
       ),
     );
   }
 
-// --- Then call this inside your build() where needed ---
-// e.g., below your main column:
-// children: [..., _buildAdminSection()]
 
+
+  Future<void> _listUsers() async {
+    String selectedRole = '';
+    String selectedState = '';
+    String selectedProfile = '';
+
+    // Save the parent context to reuse later
+    final parentContext = context;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              scrollable: true,
+              title: const Text('All Registered Users'),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: selectedRole,
+                    decoration: const InputDecoration(labelText: 'Role'),
+                    items: [
+                      '',
+                      'SYSADMIN', 'SYSBO', 'SMBO', 'SGVBO', 'SDVBO',
+                      'PRBO', 'ADLU', 'PO', 'RU', 'VU'
+                    ].map((role) => DropdownMenuItem(value: role, child: Text(role.isEmpty ? 'Any' : role))).toList(),
+                    onChanged: (value) => setState(() => selectedRole = value ?? ''),
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: selectedState,
+                    decoration: const InputDecoration(labelText: 'Account State'),
+                    items: ['', 'ACTIVE', 'INACTIVE', 'SUSPENDED']
+                        .map((state) => DropdownMenuItem(value: state, child: Text(state.isEmpty ? 'Any' : state)))
+                        .toList(),
+                    onChanged: (value) => setState(() => selectedState = value ?? ''),
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: selectedProfile,
+                    decoration: const InputDecoration(labelText: 'Profile'),
+                    items: ['', 'PRIVATE', 'PUBLIC']
+                        .map((profile) => DropdownMenuItem(value: profile, child: Text(profile.isEmpty ? 'Any' : profile)))
+                        .toList(),
+                    onChanged: (value) => setState(() => selectedProfile = value ?? ''),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(dialogContext).pop(); // Close the filter dialog
+
+                    final queryParams = <String, String>{};
+                    if (selectedRole.isNotEmpty) queryParams['role'] = selectedRole;
+                    if (selectedState.isNotEmpty) queryParams['state'] = selectedState;
+                    if (selectedProfile.isNotEmpty) queryParams['profile'] = selectedProfile;
+
+                    final uri = Uri.https(
+                      'rezone-459910.oa.r.appspot.com',
+                      '/rest/list/users',
+                      queryParams,
+                    );
+
+                    final headers = {
+                      'Authorization': 'Bearer ${widget.tokenID}',
+                    };
+
+                    try {
+                      final res = await http.get(uri, headers: headers);
+
+                      if (res.statusCode == 200) {
+                        final data = jsonDecode(res.body);
+                        final List users = data is List ? data : (data['users'] ?? []);
+
+                        if (!parentContext.mounted) return;
+
+                        showDialog(
+                          context: parentContext,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Users List'),
+                            content: SizedBox(
+                              width: double.maxFinite,
+                              child: users.isEmpty
+                                  ? const Text('No users found.')
+                                  : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: users.length,
+                                itemBuilder: (_, index) {
+                                  final user = users[index];
+                                  return ListTile(
+                                    title: Text(user['username'] ?? ''),
+                                    subtitle: Text('Email: ${user['email'] ?? 'N/A'}'),
+                                  );
+                                },
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(parentContext).pop(),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        );
+                      } else {
+                        final err = jsonDecode(res.body);
+                        _showErrorDialog(parentContext, 'Failed: ${err['error'] ?? res.body}');
+                      }
+                    } catch (e) {
+                      _showErrorDialog(parentContext, 'Error: $e');
+                    }
+                  },
+                  child: const Text('Apply Filters'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    if (!context.mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
 }

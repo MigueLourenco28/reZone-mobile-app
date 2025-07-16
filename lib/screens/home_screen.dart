@@ -56,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         MapScreen(
           tokenID: tokenID!,
+          userID: userID!,
           onLogoutSuccess: widget.onLogoutSuccess,
         ),
         ProfileScreen(

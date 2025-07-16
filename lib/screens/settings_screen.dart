@@ -27,7 +27,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _isDarkMode = false;
+  ThemeMode _selectedThemeMode = ThemeMode.system;
 
   @override
   void initState() {
@@ -62,21 +62,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadThemePreference() async {
     final prefs = await SharedPreferences.getInstance();
+    final themeIndex = prefs.getInt('themeMode') ?? ThemeMode.system.index;
     setState(() {
-      _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+      _selectedThemeMode = ThemeMode.values[themeIndex];
     });
   }
 
-  Future<void> _toggleDarkMode(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', value);
-    setState(() {
-      _isDarkMode = value;
-    });
-
-    // Trigger a rebuild of the app with new theme
-    final brightness = value ? ThemeMode.dark : ThemeMode.light;
-    MyApp.of(context).setThemeMode(brightness);
+  void _onThemeChanged(ThemeMode? mode) {
+    if (mode != null) {
+      setState(() {
+        _selectedThemeMode = mode;
+      });
+      MyApp.of(context).setThemeMode(mode);
+    }
   }
 
   @override
@@ -100,10 +98,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
       )),
       body: ListView(
         children: [
-          SwitchListTile(
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              "Theme",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text("System Default"),
+            value: ThemeMode.system,
+            groupValue: _selectedThemeMode,
+            onChanged: _onThemeChanged,
+            secondary: const Icon(Icons.phone_android),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text("Light Mode"),
+            value: ThemeMode.light,
+            groupValue: _selectedThemeMode,
+            onChanged: _onThemeChanged,
+            secondary: const Icon(Icons.light_mode),
+          ),
+          RadioListTile<ThemeMode>(
             title: const Text("Dark Mode"),
-            value: _isDarkMode,
-            onChanged: _toggleDarkMode,
+            value: ThemeMode.dark,
+            groupValue: _selectedThemeMode,
+            onChanged: _onThemeChanged,
             secondary: const Icon(Icons.dark_mode),
           ),
         ],

@@ -19,9 +19,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
 class MapScreen extends StatefulWidget {
-  final String tokenID;
+  final String tokenID, userID;
   final VoidCallback onLogoutSuccess;
-  const MapScreen({super.key, required this.tokenID, required this.onLogoutSuccess});
+  const MapScreen({super.key, required this.tokenID, required this.userID, required this.onLogoutSuccess});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -32,6 +32,11 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+
+  GoogleMapController? mapController;
+  Set<Polygon> polygons = {};
+  LatLng? selectedPoint;
+  String selectedActivityType = '';
 
   @override
   void initState() {
@@ -77,6 +82,231 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     super.dispose();
   }
 
+  void _onMapCreated(GoogleMapController controller) {
+    mapController = controller;
+  }
+
+  LatLngBounds _computeBounds(List<LatLng> points) {
+    final southwestLat = points.map((p) => p.latitude).reduce(min);
+    final southwestLng = points.map((p) => p.longitude).reduce(min);
+    final northeastLat = points.map((p) => p.latitude).reduce(max);
+    final northeastLng = points.map((p) => p.longitude).reduce(max);
+
+    return LatLngBounds(
+      southwest: LatLng(southwestLat, southwestLng),
+      northeast: LatLng(northeastLat, northeastLng),
+    );
+  }
+
+  LatLng calculateCentroid(List<LatLng> points) { // Save polygon as coordinates
+    double latitudeSum = 0;
+    double longitudeSum = 0;
+
+    for (var point in points) {
+      latitudeSum += point.latitude;
+      longitudeSum += point.longitude;
+    }
+
+    return LatLng(
+      latitudeSum / points.length,
+      longitudeSum / points.length,
+    );
+  }
+
+  // Dummy function to fetch polygons
+  Future<void> fetchPolygons({required bool recent}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/worksheet/'),
+        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception("Status: ${response.statusCode}, Body: ${response.body}");
+      }
+
+      final List<dynamic> worksheets = jsonDecode(response.body);
+
+      if (worksheets.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Nenhuma folha de obra disponível.")));
+        return;
+      }
+
+      List<Map<String, dynamic>> detailedWorksheets = [];
+
+      for (final ws in worksheets) {
+        final id = ws['id'];
+        if (id == null) continue;
+
+        final detailRes = await http.post(
+          Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/worksheet/detailed'),
+          headers: {
+            'Authorization': 'Bearer ${widget.tokenID}',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({"id": id}),
+        );
+
+        if (detailRes.statusCode != 200) continue;
+
+        final detailData = jsonDecode(detailRes.body);
+        if (detailData['WorkSheet']?['workSheet_issue_date'] == null ||
+            detailData['Features'] == null) continue;
+
+        detailedWorksheets.add({
+          "id": id,
+          "issue_date": detailData['WorkSheet']['workSheet_issue_date'],
+          "features": detailData['Features'],
+        });
+      }
+
+      if (detailedWorksheets.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Nenhuma folha com detalhes válidos.")));
+        return;
+      }
+
+      // Sort and take oldest/recent
+      detailedWorksheets.sort((a, b) {
+        final aDate = DateTime.tryParse(a['issue_date']) ?? DateTime(1900);
+        final bDate = DateTime.tryParse(b['issue_date']) ?? DateTime(1900);
+        return aDate.compareTo(bDate);
+      });
+
+      final selected = recent ? detailedWorksheets.reversed.take(3) : detailedWorksheets.take(3);
+
+      Set<Polygon> newPolygons = {};
+      List<LatLng> allPoints = [];
+
+      for (final ws in selected) {
+        final features = ws['features'] as List;
+
+        for (final f in features) {
+          final polygonId = f['feature_polygon_id'].toString();
+          final coords = f['feature_coordinates'];
+
+          if (coords == null || coords.length < 6) continue;
+
+          final latlngList = <LatLng>[];
+          for (int i = 0; i < coords.length - 1; i += 2) {
+            final x = coords[i];
+            final y = coords[i + 1];
+
+            final lat = 39.5 + (y / 1e5);
+            final lng = -8.0 + (x / 1e5);
+
+            latlngList.add(LatLng(lat, lng));
+          }
+
+          // Ensure it closes
+          if (latlngList.first != latlngList.last) {
+            latlngList.add(latlngList.first);
+          }
+
+          newPolygons.add(
+            Polygon(
+              polygonId: PolygonId(polygonId),
+              points: latlngList,
+              strokeColor: Colors.green,
+              fillColor: Colors.green.withOpacity(0.2),
+              strokeWidth: 2,
+              consumeTapEvents: true,
+              onTap: () {
+                final centroid = calculateCentroid(latlngList);
+                final place = "${centroid.latitude},${centroid.longitude}";
+                onPolygonSelected(polygonId, place);
+              },
+            ),
+          );
+          allPoints.addAll(latlngList);
+        }
+      }
+
+      setState(() => polygons = newPolygons);
+
+      if (allPoints.isNotEmpty && mapController != null) {
+        LatLngBounds bounds = _computeBounds(allPoints);
+
+        mapController!.animateCamera(
+          CameraUpdate.newLatLngBounds(bounds, 50), // 50 = padding
+        );
+      }
+
+      if (newPolygons.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Nenhum polígono encontrado.")));
+      }
+
+    } catch (e) {
+      debugPrint("Erro em fetchPolygons: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro ao buscar folhas: $e")));
+    }
+  }
+
+  void onPolygonSelected(String polygonId, String polygonCenter) {
+    selectedPoint = null;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        final TextEditingController friendController = TextEditingController();
+        final TextEditingController dateController = TextEditingController();
+        final TextEditingController timeController = TextEditingController();
+
+        return AlertDialog(
+          title: const Text("Create Activity"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Polygon selected: $polygonId"),
+              TextField(controller: friendController, decoration: InputDecoration(labelText: "Friend name")),
+              TextField(controller: dateController, decoration: InputDecoration(labelText: "Date (DD/MM/YYYY)")),
+              TextField(controller: timeController, decoration: InputDecoration(labelText: "Hour (HH:MM)")),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+
+                final body = {
+                  "username": widget.userID,
+                  "friendUserName": friendController.text,
+                  "activityType": selectedActivityType,
+                  "activityDate": dateController.text,
+                  "activityTime": timeController.text,
+                  "activityPlace": polygonCenter,
+                };
+
+                try {
+
+                  final res = await http.post(
+                    Uri.parse("https://rezone-459910.oa.r.appspot.com/rest/activities/"),
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': 'Bearer ${widget.tokenID}',
+                    },
+                    body: jsonEncode(body),
+                  );
+
+                  if (res.statusCode == 200) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Activity created!')));
+                  } else {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${res.body}')));
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error fetching creating activity: $e")),
+                  );
+                }
+              },
+              child: const Text("Confirm"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const LatLng _center = LatLng(39.556664, -7.995860); // Mação
@@ -84,8 +314,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     return Scaffold(
       body: Stack(
         children: [
-          const GoogleMap( // Display Google Maps
-            initialCameraPosition: CameraPosition(target: _center, zoom: 13),
+          GoogleMap(
+            onMapCreated: _onMapCreated,
+            initialCameraPosition: const CameraPosition(target: _center, zoom: 13),
+            polygons: polygons,
           ),
 
           // Menu Toggle + Animated Menu (no blur)
@@ -109,17 +341,21 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       _buildMenuButton(
                           svgIconPath: 'assets/icons/camping.svg',
                           tag: 'camping',
-                          onPressed: () {
-                            // TODO: Filtrar folhas de execução e mostrar no mapa as zonas
-                            // que foram transformadas há mais tempo para poder acampar
+                          onPressed: () async {
+                            // TODO: Filter worksheets by the oldest date and replace the map
+                            // with the polygons of the worksheets that were created the oldest
+                            selectedActivityType = "CAMPING"; // Store current type globally
+                            await fetchPolygons(recent: true);
                           }),
                       const SizedBox(height: 8),
                       _buildMenuButton(
                           svgIconPath: 'assets/icons/footprint.svg',
                           tag: 'jogging',
-                          onPressed: () {
-                            // TODO: Filtrar folhas de execução e mostrar no mapa as zonas
-                            // que foram transformadas há não tanto tempo mas da para caminhar
+                          onPressed: () async {
+                            // TODO: Filter worksheets by the most recent date and replace the map
+                            // with the polygons of the worksheets that were created the most recently
+                            selectedActivityType = "JOGGING";
+                            await fetchPolygons(recent: false);
                           }),
                       const SizedBox(height: 8),
                       _buildMenuButton(

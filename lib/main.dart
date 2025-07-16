@@ -38,7 +38,13 @@ class _MyAppState extends State<MyApp> {
 
   Timer? _logoutTimer;
 
+  Future<void> saveThemeMode(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('themeMode', mode.index);
+  }
+
   void setThemeMode(ThemeMode mode) {
+    saveThemeMode(mode);
     setState(() {
       _themeMode = mode;
     });
@@ -119,8 +125,8 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _loadSavedTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final isDark = prefs.getBool('isDarkMode') ?? false;
-    setThemeMode(isDark ? ThemeMode.dark : ThemeMode.light);
+    final themeIndex = prefs.getInt('themeMode') ?? ThemeMode.system.index;
+    setThemeMode(ThemeMode.values[themeIndex]);
   }
 
   @override

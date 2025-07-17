@@ -1,22 +1,7 @@
-// screens/community_screen.dart
-import '../utils/local_storage_util.dart';
-import '../main.dart';
-import 'community_screen.dart';
-import 'activities_screen.dart';
-import 'map_screen.dart';
-import 'profile_screen.dart';
-import 'settings_screen.dart';
-
 import 'dart:convert';
-import 'dart:math';
-import 'dart:ui';
-import 'package:jwt_decode/jwt_decode.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
+import 'chat_screen.dart';
 
 class CommunityScreen extends StatefulWidget {
   final String tokenID;
@@ -38,33 +23,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   void initState() {
     super.initState();
-    checkTokenExp();
+    final token = widget.tokenID;
+    final parts = token.split('.');
+    if (parts.length == 3) {
+      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+      currentUsername = payload['sub'];
+    }
     fetchPublicUsers();
     fetchUserFriends();
-  }
-
-  void checkTokenExp() async {
-    // Check if the token is still valid, if not, redirect to login page;
-    void checkToken() async {
-      final authData = await LocalStorageUtil.getAuthData();
-      final tokenExp = authData['tokenExp'];
-
-      if (tokenExp == null) {
-        // No expiration info, redirect to login
-        Navigator.pushReplacementNamed(context, '/');
-        return;
-      }
-
-      final expiration = int.tryParse(tokenExp);
-      if (expiration == null) {
-        Navigator.pushReplacementNamed(context, '/');
-        return;
-      }
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      if (now >= expiration) {
-        widget.onLogoutSuccess();
-      }
-    }
   }
 
   Future<void> fetchUserFriends() async {
@@ -73,51 +39,42 @@ class _CommunityScreenState extends State<CommunityScreen> {
         Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/user/friends'),
         headers: {'Authorization': 'Bearer ${widget.tokenID}'},
       );
-
       if (res.statusCode == 200) {
         final List<dynamic> friends = jsonDecode(res.body);
         setState(() {
-          userFriends = friends
-              .map<Map<String, String>>((u) => Map<String, String>.from(u))
-              .toList();
+          userFriends = friends.map((u) => Map<String, String>.from(u)).toList();
           isLoading = false;
         });
       } else {
-        throw Exception('Failed: ${res.body}');
+        throw Exception('Failed to fetch friends: ${res.body}');
       }
     } catch (e) {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error fetching user friends: $e")),
+        SnackBar(content: Text("Error fetching friends: $e")),
       );
     }
   }
 
   Future<void> fetchPublicUsers() async {
     try {
-      final token = widget.tokenID;
-      final parts = token.split('.');
-      if (parts.length != 3) throw Exception('Invalid JWT format');
-      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
-      currentUsername = payload['sub'];
-
       final res = await http.get(
         Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/list/public-users'),
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
       );
-
       if (res.statusCode == 200) {
         final List<dynamic> users = jsonDecode(res.body);
         setState(() {
           publicUsers = users
               .map<Map<String, String>>((u) => Map<String, String>.from(u))
-              .where((user) => user['username'] != currentUsername &&
-              !userFriends.any((friend) => friend['username'] == user['username'])) // Exclude the current user and friends
+              .where((user) =>
+          user['username'] != currentUsername &&
+              !userFriends.any((friend) => friend['username'] == user['username']))
               .toList();
           isLoading = false;
         });
       } else {
-        throw Exception('Failed: ${res.body}');
+        throw Exception('Failed to fetch public users: ${res.body}');
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -129,22 +86,21 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   Future<void> addFriend(String friend) async {
     try {
-
       final res = await http.post(
         Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/friends/add/$friend'),
         headers: {'Authorization': 'Bearer ${widget.tokenID}'},
       );
-
       if (res.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Friend added successfully")),
         );
-        userFriends.add({'username': friend});
+        setState(() {
+          userFriends.add({'username': friend});
+        });
       } else {
-        throw Exception('Failed: ${res.body}');
+        throw Exception('Failed to add friend: ${res.body}');
       }
     } catch (e) {
-      setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error adding friend: $e")),
       );
@@ -153,29 +109,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   Future<void> removeFriend(String friend) async {
     try {
-
       final res = await http.post(
         Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/change/friends/remove/$friend'),
         headers: {'Authorization': 'Bearer ${widget.tokenID}'},
       );
-
       if (res.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Friend removed successfully")),
         );
-        userFriends.remove({'username': friend});
+        setState(() {
+          userFriends.removeWhere((f) => f['username'] == friend);
+        });
       } else {
-        throw Exception('Failed: ${res.body}');
+        throw Exception('Failed to remove friend: ${res.body}');
       }
     } catch (e) {
-      setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error removing friend: $e")),
       );
     }
   }
 
-  // Check if a user is a friend
   bool isFriend(String username) {
     return userFriends.any((friend) => friend['username'] == username);
   }
@@ -202,14 +156,29 @@ class _CommunityScreenState extends State<CommunityScreen> {
               ),
               const SizedBox(height: 16),
               if (user['fullName'] != null)
-                Row(children: [const Icon(Icons.badge), const SizedBox(width: 8), Expanded(child: Text("Full Name: ${user['fullName']}"))]),
+                Row(
+                  children: [
+                    const Icon(Icons.badge),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text("Full Name: ${user['fullName']}")),
+                  ],
+                ),
               if (user['email'] != null)
-                Row(children: [const Icon(Icons.email), const SizedBox(width: 8), Expanded(child: Text("Email: ${user['email']}"))]),
+                Row(
+                  children: [
+                    const Icon(Icons.email),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text("Email: ${user['email']}")),
+                  ],
+                ),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Close"),
+                  ),
                   isFriend(user['username']!)
                       ? ElevatedButton.icon(
                     onPressed: () {
@@ -218,7 +187,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                     },
                     icon: const Icon(Icons.person_remove),
                     label: const Text("Remove Friend"),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
                   )
                       : ElevatedButton.icon(
                     onPressed: () {
@@ -227,7 +199,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                     },
                     icon: const Icon(Icons.person_add),
                     label: const Text("Add Friend"),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -259,25 +234,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 SizedBox(
                   height: 300,
                   child: ListView(
-                    children: publicUsers // Only list public users that are not friends with the current user
+                    children: publicUsers
                         .where((u) =>
                     u['username']!.toLowerCase().contains(searchQuery.toLowerCase()) &&
-                        !isFriend(u['username']!)
-                    ).map((user) {
-                      return ListTile(
-                        onTap: () => showUserPopup(user),
-                        leading: const CircleAvatar(child: Icon(Icons.person)),
-                        title: Text(user['username'] ?? ''),
-                        trailing: ElevatedButton(
-                          onPressed: () {
-                            addFriend(user['username']!);
-                            Navigator.pop(context);
-                          },
-                          child: const Text("Add"),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                        !isFriend(u['username']!))
+                        .map((user) => ListTile(
+                      onTap: () => showUserPopup(user),
+                      leading: const CircleAvatar(child: Icon(Icons.person)),
+                      title: Text(user['username'] ?? ''),
+                      trailing: ElevatedButton(
+                        onPressed: () {
+                          addFriend(user['username']!);
+                          Navigator.pop(context);
+                        },
+                        child: const Text("Add"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    ))
+                        .toList(),
                   ),
                 ),
               ],
@@ -292,7 +269,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Community", style: TextStyle(fontFamily: 'Handler', fontSize: 32)),
+        title: const Text("Community"),
         centerTitle: true,
       ),
       body: isLoading
@@ -304,24 +281,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
             children: [
               TextButton(
                 onPressed: () => setState(() => selectedTab = 0),
-                child: Text("Friends",
-                    style: TextStyle(
-                      fontWeight: selectedTab == 0 ? FontWeight.bold : FontWeight.normal,
-                      color: selectedTab == 0 ? Colors.green : Colors.grey,
-                    )),
+                child: Text(
+                  "Friends",
+                  style: TextStyle(
+                    fontWeight: selectedTab == 0 ? FontWeight.bold : FontWeight.normal,
+                    color: selectedTab == 0 ? Colors.green : Colors.grey,
+                  ),
+                ),
               ),
               const Text("|"),
               TextButton(
                 onPressed: () => setState(() => selectedTab = 1),
-                child: Text("Chat",
-                    style: TextStyle(
-                      fontWeight: selectedTab == 1 ? FontWeight.bold : FontWeight.normal,
-                      color: selectedTab == 1 ? Colors.green : Colors.grey,
-                    )),
+                child: Text(
+                  "Chat",
+                  style: TextStyle(
+                    fontWeight: selectedTab == 1 ? FontWeight.bold : FontWeight.normal,
+                    color: selectedTab == 1 ? Colors.green : Colors.grey,
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
           Expanded(
             child: selectedTab == 0
                 ? userFriends.isEmpty
@@ -343,7 +323,40 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 );
               },
             )
-                : const Center(child: Text("Chat functionality coming soon.")),
+                : userFriends.isEmpty
+                ? const Center(child: Text("No friends to chat with"))
+                : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: userFriends.length,
+              itemBuilder: (context, index) {
+                final user = userFriends[index];
+                if (user['username'] != null && user['username']!.isNotEmpty) {
+                  print('Opening chat with friendUsername: ${user['username']}'); // Debug print
+                  return Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: ListTile(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              friendUsername: user['username']!.trim(), // Trim to avoid whitespace
+                              tokenID: widget.tokenID,
+                            ),
+                          ),
+                        );
+                      },
+                      leading: const CircleAvatar(child: Icon(Icons.person)),
+                      title: Text(user['username'] ?? 'Unnamed'),
+                      trailing: const Icon(Icons.chat, size: 16),
+                    ),
+                  );
+                } else {
+                  return const SizedBox.shrink(); // Skip invalid users
+                }
+              },
+            ),
           ),
         ],
       ),

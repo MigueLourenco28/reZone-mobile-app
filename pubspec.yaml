@@ -121,6 +121,7 @@ flutter:
     - assets/icons/camping.svg
     - assets/icons/footprint.svg
     - assets/icons/hiking.svg
+    - assets/icons/gemini.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

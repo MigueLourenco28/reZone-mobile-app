@@ -1,7 +1,22 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../utils/local_storage_util.dart';
+import '../main.dart';
+import 'community_screen.dart';
+import 'activities_screen.dart';
+import 'map_screen.dart';
+import 'profile_screen.dart';
+import 'settings_screen.dart';
 import 'chat_screen.dart';
+
+import 'dart:convert';
+import 'dart:math';
+import 'dart:ui';
+import 'package:jwt_decode/jwt_decode.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:http/http.dart' as http;
 
 class CommunityScreen extends StatefulWidget {
   final String tokenID;
@@ -280,7 +295,13 @@ class _CommunityScreenState extends State<CommunityScreen> {
     print('Building CommunityScreen with FloatingActionButton'); // Debug print
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Community"),
+        title: const Text(
+          'Community',
+          style: TextStyle(
+            fontFamily: 'Handler',
+            fontSize: 45.0,
+          ),
+        ),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -377,11 +398,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: selectedTab == 0 ? showAddFriendPopup : _openGeminiChat,
         backgroundColor: Colors.green,
-        mini: false, // Default size, matches Add Friend button
+        mini: false,
         tooltip: selectedTab == 0 ? 'Add Friend' : "Rezone's AI Assistant",
-        child: Icon(
-          selectedTab == 0 ? Icons.person_add_alt_1 : Icons.chat_bubble_outline,
-          color: Colors.white,
+        child: selectedTab == 0
+            ? const Icon(Icons.person_add_alt_1, color: Colors.white)
+            : SvgPicture.asset(
+          'assets/icons/gemini.svg',
+          width: 28,
+          height: 28,
+          color: Colors.white, // Apply white tint like an Icon
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, // Bottom-right

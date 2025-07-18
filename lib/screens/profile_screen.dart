@@ -1058,7 +1058,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   DropdownButtonFormField<String>(
                     value: selectedState,
                     decoration: const InputDecoration(labelText: 'Account State'),
-                    items: ['', 'ACTIVE', 'INACTIVE', 'SUSPENDED']
+                    items: ['', 'ACTIVE', 'INACTIVE', 'SUSPENDED', 'A_REMOVER']
                         .map((state) => DropdownMenuItem(value: state, child: Text(state.isEmpty ? 'Any' : state)))
                         .toList(),
                     onChanged: (value) => setState(() => selectedState = value ?? ''),

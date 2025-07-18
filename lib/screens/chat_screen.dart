@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -12,89 +13,89 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  List<Map<String, String>> messages = [];
-  bool isLoading = true;
-  String currentUsername = '';
-  TextEditingController messageController = TextEditingController();
+  void _openGeminiChat() {
+    print('Opening GeminiChatScreen - Button Pressed'); // Debug print
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GeminiChatScreen(tokenID: widget.tokenID),
+      ),
+    );
+  }
 
   @override
-  void initState() {
-    super.initState();
-    final token = widget.tokenID;
-    final parts = token.split('.');
-    if (parts.length == 3) {
-      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
-      currentUsername = payload['sub'];
-      print('Current username from JWT: $currentUsername'); // Debug print
-    }
-    print('Fetching messages with friendUsername: ${widget.friendUsername}'); // Debug print
-    fetchMessages();
+  Widget build(BuildContext context) {
+    print('Building ChatScreen'); // Debug print
+    return Scaffold(
+      appBar: AppBar(title: Text("Chat with ${widget.friendUsername}")),
+      body: const SafeArea(
+        child: Center(
+          child: Text(
+            "Still in development",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
   }
+}
 
-  Future<void> fetchMessages() async {
-    try {
-      final res = await http.get(
-        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/chat/${widget.friendUsername}'),
-        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
-      );
-      if (res.statusCode == 200) {
-        final List<dynamic> msgs = jsonDecode(res.body);
-        setState(() {
-          messages = msgs.map((m) => Map<String, String>.from(m)).toList();
-          isLoading = false;
-        });
-      } else if (res.statusCode == 403) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You can only chat with your friends.")),
-        );
-        setState(() => isLoading = false);
-      } else if (res.statusCode == 404) {
-        final errorBody = jsonDecode(res.body);
-        print('404 Error: ${errorBody['error']}'); // Log the exact error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: ${errorBody['error']}")),
-        );
-        setState(() => isLoading = false);
-      } else {
-        throw Exception('Failed to fetch messages: ${res.statusCode} - ${res.body}');
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error fetching messages: $e")),
-      );
-    }
-  }
+// GeminiChatScreen remains unchanged
+class GeminiChatScreen extends StatefulWidget {
+  final String tokenID;
+  const GeminiChatScreen({super.key, required this.tokenID});
 
-  Future<void> sendMessage(String message) async {
+  @override
+  State<GeminiChatScreen> createState() => _GeminiChatScreenState();
+}
+
+class _GeminiChatScreenState extends State<GeminiChatScreen> {
+  List<Map<String, String>> messages = [];
+  TextEditingController messageController = TextEditingController();
+  bool isLoading = false;
+
+  Future<void> sendGeminiMessage(String message) async {
     if (message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Message cannot be empty.")),
       );
       return;
     }
+
+    setState(() {
+      messages.add({'sender': 'user', 'content': message});
+      isLoading = true;
+    });
+
     try {
       final res = await http.post(
-        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/chat/${widget.friendUsername}'),
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/chat-gemini'),
         headers: {
           'Authorization': 'Bearer ${widget.tokenID}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'content': message}),
+        body: jsonEncode({'message': message}),
       );
+
       if (res.statusCode == 200) {
+        final responseBody = jsonDecode(res.body);
+        setState(() {
+          messages.add({'sender': 'gemini', 'content': responseBody['message']});
+          isLoading = false;
+        });
         messageController.clear();
-        await fetchMessages();
-      } else if (res.statusCode == 403) {
+      } else if (res.statusCode == 401) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You can only chat with your friends.")),
+          const SnackBar(content: Text("Unauthorized: Invalid or expired token.")),
         );
+        setState(() => isLoading = false);
       } else {
-        throw Exception('Failed to send message: ${res.statusCode} - ${res.body}');
+        throw Exception('Failed to get Gemini response: ${res.statusCode} - ${res.body}');
       }
     } catch (e) {
+      setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error sending message: $e")),
+        SnackBar(content: Text("Error communicating with Gemini: $e")),
       );
     }
   }
@@ -102,51 +103,50 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Chat with ${widget.friendUsername}")),
+      appBar: AppBar(title: const Text("Chat with Rezone's AI")),
       body: Column(
         children: [
           Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : messages.isEmpty
-                ? const Center(child: Text("No messages yet. Start the conversation!"))
+            child: messages.isEmpty
+                ? const Center(child: Text("Start chatting with Rezone's AI!"))
                 : ListView.builder(
               itemCount: messages.length,
               itemBuilder: (context, index) {
                 final msg = messages[index];
-                final isMe = msg['sender'] == currentUsername;
+                final isUser = msg['sender'] == 'user';
                 return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                     margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isMe ? Colors.green : Colors.grey[300],
+                      color: isUser ? Colors.blue : Colors.grey[300],
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       msg['content'] ?? '',
-                      style: TextStyle(color: isMe ? Colors.white : Colors.black),
+                      style: TextStyle(color: isUser ? Colors.white : Colors.black),
                     ),
                   ),
                 );
               },
             ),
           ),
+          if (isLoading) const LinearProgressIndicator(),
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 16.0),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: messageController,
-                    decoration: const InputDecoration(hintText: "Type a message..."),
+                    decoration: const InputDecoration(hintText: "Type a message to Rezone's AI..."),
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.send),
-                  onPressed: () => sendMessage(messageController.text),
+                  onPressed: () => sendGeminiMessage(messageController.text),
                 ),
               ],
             ),

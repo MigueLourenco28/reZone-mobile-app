@@ -265,108 +265,126 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
+  void _openGeminiChat() {
+    print('Opening GeminiChatScreen from CommunityScreen'); // Debug print
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GeminiChatScreen(tokenID: widget.tokenID),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    print('Building CommunityScreen with FloatingActionButton'); // Debug print
     return Scaffold(
       appBar: AppBar(
         title: const Text("Community"),
         centerTitle: true,
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                onPressed: () => setState(() => selectedTab = 0),
-                child: Text(
-                  "Friends",
-                  style: TextStyle(
-                    fontWeight: selectedTab == 0 ? FontWeight.bold : FontWeight.normal,
-                    color: selectedTab == 0 ? Colors.green : Colors.grey,
+      body: SafeArea(
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => setState(() => selectedTab = 0),
+                  child: Text(
+                    "Friends",
+                    style: TextStyle(
+                      fontWeight: selectedTab == 0 ? FontWeight.bold : FontWeight.normal,
+                      color: selectedTab == 0 ? Colors.green : Colors.grey,
+                    ),
                   ),
                 ),
-              ),
-              const Text("|"),
-              TextButton(
-                onPressed: () => setState(() => selectedTab = 1),
-                child: Text(
-                  "Chat",
-                  style: TextStyle(
-                    fontWeight: selectedTab == 1 ? FontWeight.bold : FontWeight.normal,
-                    color: selectedTab == 1 ? Colors.green : Colors.grey,
+                const Text("|"),
+                TextButton(
+                  onPressed: () => setState(() => selectedTab = 1),
+                  child: Text(
+                    "Chat",
+                    style: TextStyle(
+                      fontWeight: selectedTab == 1 ? FontWeight.bold : FontWeight.normal,
+                      color: selectedTab == 1 ? Colors.green : Colors.grey,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          Expanded(
-            child: selectedTab == 0
-                ? userFriends.isEmpty
-                ? const Center(child: Text("No friends yet"))
-                : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: userFriends.length,
-              itemBuilder: (context, index) {
-                final user = userFriends[index];
-                return Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: ListTile(
-                    onTap: () => showUserPopup(user),
-                    leading: const CircleAvatar(child: Icon(Icons.person)),
-                    title: Text(user['username'] ?? 'Unnamed'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  ),
-                );
-              },
-            )
-                : userFriends.isEmpty
-                ? const Center(child: Text("No friends to chat with"))
-                : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: userFriends.length,
-              itemBuilder: (context, index) {
-                final user = userFriends[index];
-                if (user['username'] != null && user['username']!.isNotEmpty) {
-                  print('Opening chat with friendUsername: ${user['username']}'); // Debug print
+              ],
+            ),
+            Expanded(
+              child: selectedTab == 0
+                  ? userFriends.isEmpty
+                  ? const Center(child: Text("No friends yet"))
+                  : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: userFriends.length,
+                itemBuilder: (context, index) {
+                  final user = userFriends[index];
                   return Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     child: ListTile(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatScreen(
-                              friendUsername: user['username']!.trim(), // Trim to avoid whitespace
-                              tokenID: widget.tokenID,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => showUserPopup(user),
                       leading: const CircleAvatar(child: Icon(Icons.person)),
                       title: Text(user['username'] ?? 'Unnamed'),
-                      trailing: const Icon(Icons.chat, size: 16),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     ),
                   );
-                } else {
-                  return const SizedBox.shrink(); // Skip invalid users
-                }
-              },
+                },
+              )
+                  : userFriends.isEmpty
+                  ? const Center(child: Text("No friends to chat with"))
+                  : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: userFriends.length,
+                itemBuilder: (context, index) {
+                  final user = userFriends[index];
+                  if (user['username'] != null && user['username']!.isNotEmpty) {
+                    print('Opening chat with friendUsername: ${user['username']}'); // Debug print
+                    return Card(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: ListTile(
+                        onTap: () {
+                          print('Navigating to ChatScreen with friend: ${user['username']}'); // Debug print
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatScreen(
+                                friendUsername: user['username']!.trim(),
+                                tokenID: widget.tokenID,
+                              ),
+                            ),
+                          );
+                        },
+                        leading: const CircleAvatar(child: Icon(Icons.person)),
+                        title: Text(user['username'] ?? 'Unnamed'),
+                        trailing: const Icon(Icons.chat, size: 16),
+                      ),
+                    );
+                  } else {
+                    return const SizedBox.shrink(); // Skip invalid users
+                  }
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-      floatingActionButton: selectedTab == 0
-          ? FloatingActionButton(
-        onPressed: showAddFriendPopup,
+      floatingActionButton: FloatingActionButton(
+        onPressed: selectedTab == 0 ? showAddFriendPopup : _openGeminiChat,
         backgroundColor: Colors.green,
-        child: const Icon(Icons.person_add_alt_1, color: Colors.white),
-      )
-          : null,
+        mini: false, // Default size, matches Add Friend button
+        tooltip: selectedTab == 0 ? 'Add Friend' : "Rezone's AI Assistant",
+        child: Icon(
+          selectedTab == 0 ? Icons.person_add_alt_1 : Icons.chat_bubble_outline,
+          color: Colors.white,
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, // Bottom-right
     );
   }
 }

@@ -265,7 +265,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           actions: [
             TextButton(
               onPressed: () async {
-
                 final body = {
                   "username": widget.userID,
                   "friendUserName": friendController.text,
@@ -276,7 +275,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 };
 
                 try {
-
                   final res = await http.post(
                     Uri.parse("https://rezone-459910.oa.r.appspot.com/rest/activities/"),
                     headers: {
@@ -335,35 +333,37 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (isActivitiesMenuOpen) // TODO: add animation + make icon color match dark/light mode
+                if (isActivitiesMenuOpen)
                   Column(
                     children: [
                       _buildMenuButton(
-                          svgIconPath: 'assets/icons/camping.svg',
-                          tag: 'camping',
-                          onPressed: () async {
-                            // TODO: Filter worksheets by the oldest date and replace the map
-                            // with the polygons of the worksheets that were created the oldest
-                            selectedActivityType = "CAMPING"; // Store current type globally
-                            await fetchPolygons(recent: true);
-                          }),
+                        svgIconPath: 'assets/icons/camping.svg',
+                        tag: 'camping',
+                        activityType: 'CAMPING',
+                        onPressed: () async {
+                          selectedActivityType = "CAMPING";
+                          await fetchPolygons(recent: true);
+                        },
+                      ),
                       const SizedBox(height: 8),
                       _buildMenuButton(
-                          svgIconPath: 'assets/icons/footprint.svg',
-                          tag: 'jogging',
-                          onPressed: () async {
-                            // TODO: Filter worksheets by the most recent date and replace the map
-                            // with the polygons of the worksheets that were created the most recently
-                            selectedActivityType = "JOGGING";
-                            await fetchPolygons(recent: false);
-                          }),
+                        svgIconPath: 'assets/icons/footprint.svg',
+                        tag: 'jogging',
+                        activityType: 'JOGGING',
+                        onPressed: () async {
+                          selectedActivityType = "JOGGING";
+                          await fetchPolygons(recent: false);
+                        },
+                      ),
                       const SizedBox(height: 8),
                       _buildMenuButton(
-                          svgIconPath: 'assets/icons/hiking.svg',
-                          tag: 'mountain',
-                          onPressed: () {
-                            //TODO:
-                          }),
+                        svgIconPath: 'assets/icons/hiking.svg',
+                        tag: 'mountain',
+                        activityType: 'CLIMBING',
+                        onPressed: () async{
+                          selectedActivityType = "CLIMBING";
+                          await fetchPolygons(recent: false);                        },
+                      ),
                     ],
                   )
               ],
@@ -378,11 +378,12 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     String? svgIconPath,
     IconData? iconData,
     required String tag,
+    required String activityType,
     required VoidCallback onPressed,
   }) {
     return FloatingActionButton(
       heroTag: tag,
-      backgroundColor: Colors.green,
+      backgroundColor: selectedActivityType == activityType ? Colors.blue : Colors.green,
       onPressed: onPressed,
       child: svgIconPath != null
           ? SvgPicture.asset(svgIconPath, width: 24, height: 24, color: Colors.white)

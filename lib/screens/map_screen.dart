@@ -29,26 +29,52 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixin {
   bool isActivitiesMenuOpen = false;
+  bool isLoading = false;
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  MapType currentMapType = MapType.normal;
+  bool isMapTypeMenuOpen = false;
+  IconData currentMapIcon = Icons.layers; // Default icon
+  Set<String> userActivityPlaces = {};
 
   GoogleMapController? mapController;
   Set<Polygon> polygons = {};
   LatLng? selectedPoint;
   String selectedActivityType = '';
+  String? selectedActivityIcon; // holds SVG path
 
   @override
   void initState() {
     super.initState();
     checkTokenExp();
+    loadUserActivities();
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(_fadeAnimation);
   }
 
+  Future<void> loadUserActivities() async {
+    try {
+      final res = await http.get(
+        Uri.parse("https://rezone-459910.oa.r.appspot.com/activities/list"),
+        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
+      );
+
+      if (res.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(res.body);
+        final Set<String> places = data.map<String>((act) => act['activityPlace']?.toString() ?? "").toSet();
+        setState(() => userActivityPlaces = places);
+      } else {
+        debugPrint("Failed to load activities: ${res.body}");
+      }
+    } catch (e) {
+      debugPrint("Error loading activities: $e");
+    }
+  }
+
   void checkTokenExp() async {
-    // Check if the token is still valid, if not, redirect to login page;
+    // Check if the token is still valid, if not, redirect to login page;m
     void checkToken() async {
       final authData = await LocalStorageUtil.getAuthData();
       final tokenExp = authData['tokenExp'];
@@ -202,21 +228,26 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             latlngList.add(latlngList.first);
           }
 
+          LatLng centroid = calculateCentroid(latlngList);
+          String placeKey = "${centroid.latitude},${centroid.longitude}";
+
+          // Choose polygon color
+          final bool hasActivity = userActivityPlaces.contains(placeKey);
+
           newPolygons.add(
             Polygon(
               polygonId: PolygonId(polygonId),
               points: latlngList,
-              strokeColor: Colors.green,
-              fillColor: Colors.green.withOpacity(0.2),
-              strokeWidth: 2,
+              strokeColor: hasActivity ? Colors.green[800]! : Colors.blue[800]!,
+              fillColor: hasActivity
+                  ? Colors.green.withOpacity(0.25)
+                  : Colors.blue.withOpacity(0.2),
+              strokeWidth: 3,
               consumeTapEvents: true,
-              onTap: () {
-                final centroid = calculateCentroid(latlngList);
-                final place = "${centroid.latitude},${centroid.longitude}";
-                onPolygonSelected(polygonId, place);
-              },
+              onTap: () => onPolygonSelected(polygonId, placeKey),
             ),
           );
+
           allPoints.addAll(latlngList);
         }
       }
@@ -265,6 +296,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           actions: [
             TextButton(
               onPressed: () async {
+
                 final body = {
                   "username": widget.userID,
                   "friendUserName": friendController.text,
@@ -275,6 +307,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 };
 
                 try {
+
                   final res = await http.post(
                     Uri.parse("https://rezone-459910.oa.r.appspot.com/rest/activities/"),
                     headers: {
@@ -305,6 +338,27 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     );
   }
 
+  Widget _buildMapTypeButton({
+    required IconData icon,
+    required MapType type,
+    required String tooltip,
+  }) {
+    return FloatingActionButton(
+      heroTag: 'mapType_$type',
+      backgroundColor: Colors.blue,
+      mini: false,
+      tooltip: tooltip,
+      onPressed: () {
+        setState(() {
+          currentMapType = type;
+          isMapTypeMenuOpen = false;
+          currentMapIcon = icon;
+        });
+      },
+      child: Icon(icon, color: Colors.white),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const LatLng _center = LatLng(39.556664, -7.995860); // Mação
@@ -316,7 +370,14 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             onMapCreated: _onMapCreated,
             initialCameraPosition: const CameraPosition(target: _center, zoom: 13),
             polygons: polygons,
+            mapType: currentMapType,
           ),
+
+          if (isLoading)
+              Container(
+                color: Colors.black.withOpacity(0.4),
+                child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+              ),
 
           // Menu Toggle + Animated Menu (no blur)
           Positioned(
@@ -328,41 +389,109 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 FloatingActionButton(
                   heroTag: 'menuToggle',
                   onPressed: toggleActivitiesMenu,
-                  child: Icon(
-                    isActivitiesMenuOpen ? Icons.close : Icons.menu,
-                  ),
+                  backgroundColor: Colors.green,
+                  child: isActivitiesMenuOpen
+                      ? const Icon(Icons.close, color: Colors.white)
+                      : (selectedActivityIcon != null
+                      ? SvgPicture.asset(selectedActivityIcon!, width: 24, height: 24, color: Colors.white)
+                      : const Icon(Icons.menu, color: Colors.white)),
                 ),
                 const SizedBox(height: 12),
-                if (isActivitiesMenuOpen)
+                if (isActivitiesMenuOpen) // TODO: add animation + make icon color match dark/light mode
                   Column(
                     children: [
                       _buildMenuButton(
-                        svgIconPath: 'assets/icons/camping.svg',
-                        tag: 'camping',
-                        activityType: 'CAMPING',
-                        onPressed: () async {
-                          selectedActivityType = "CAMPING";
-                          await fetchPolygons(recent: true);
-                        },
-                      ),
+                          svgIconPath: 'assets/icons/camping.svg',
+                          tag: 'camping',
+                          activityType: 'CAMPING',
+                          onPressed: () async {
+                            // TODO: Filter worksheets by the oldest date and replace the map
+                            // with the polygons of the worksheets that were created the oldest
+                            setState(() {
+                              selectedActivityType = "CAMPING";
+                              selectedActivityIcon = 'assets/icons/camping.svg';
+                              isActivitiesMenuOpen = false;
+                              isLoading = true;
+                            });
+                            await fetchPolygons(recent: true);
+                            setState(() => isLoading = false);
+                          }),
                       const SizedBox(height: 8),
                       _buildMenuButton(
-                        svgIconPath: 'assets/icons/footprint.svg',
-                        tag: 'jogging',
-                        activityType: 'JOGGING',
-                        onPressed: () async {
-                          selectedActivityType = "JOGGING";
-                          await fetchPolygons(recent: false);
-                        },
-                      ),
+                          svgIconPath: 'assets/icons/footprint.svg',
+                          tag: 'jogging',
+                          activityType: 'JOGGING',
+                          onPressed: () async {
+                            // TODO: Filter worksheets by the most recent date and replace the map
+                            // with the polygons of the worksheets that were created the most recently
+                            setState(() {
+                              selectedActivityType = "JOGGING";
+                              selectedActivityIcon = 'assets/icons/footprint.svg';
+                              isActivitiesMenuOpen = false;
+                              isLoading = true;
+                            });
+                            await fetchPolygons(recent: false);
+                            setState(() => isLoading = false);
+                          }),
                       const SizedBox(height: 8),
                       _buildMenuButton(
-                        svgIconPath: 'assets/icons/hiking.svg',
-                        tag: 'mountain',
-                        activityType: 'CLIMBING',
-                        onPressed: () async{
-                          selectedActivityType = "CLIMBING";
-                          await fetchPolygons(recent: false);                        },
+                          svgIconPath: 'assets/icons/hiking.svg',
+                          tag: 'mountain',
+                          activityType: 'CLIMBING',
+                          onPressed: () async {
+                            //TODO:
+                          }),
+                    ],
+                  )
+              ],
+            ),
+          ),
+          Positioned(
+            top: 40,
+            right: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Toggle button
+                FloatingActionButton(
+                  heroTag: 'mapTypeToggle',
+                  backgroundColor: Colors.blue,
+                  onPressed: () {
+                    setState(() => isMapTypeMenuOpen = !isMapTypeMenuOpen);
+                  },
+                  child: Icon(
+                    isMapTypeMenuOpen ? Icons.close : currentMapIcon,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Menu buttons
+                if (isMapTypeMenuOpen)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _buildMapTypeButton(
+                        icon: Icons.map,
+                        type: MapType.normal,
+                        tooltip: "Normal Map",
+                      ),
+                      const SizedBox(height: 8),
+                      _buildMapTypeButton(
+                        icon: Icons.satellite_alt,
+                        type: MapType.satellite,
+                        tooltip: "Satellite",
+                      ),
+                      const SizedBox(height: 8),
+                      _buildMapTypeButton(
+                        icon: Icons.terrain,
+                        type: MapType.terrain,
+                        tooltip: "Terrain",
+                      ),
+                      const SizedBox(height: 8),
+                      _buildMapTypeButton(
+                        icon: Icons.layers,
+                        type: MapType.hybrid,
+                        tooltip: "Hybrid",
                       ),
                     ],
                   )

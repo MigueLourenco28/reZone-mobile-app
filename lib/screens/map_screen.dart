@@ -422,8 +422,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           tag: 'jogging',
                           activityType: 'JOGGING',
                           onPressed: () async {
-                            // TODO: Filter worksheets by the most recent date and replace the map
-                            // with the polygons of the worksheets that were created the most recently
+                            // TODO: Filter worksheets by all the worksheets and replace the map
+                            // with the polygons of all the worksheets
                             setState(() {
                               selectedActivityType = "JOGGING";
                               selectedActivityIcon = 'assets/icons/footprint.svg';
@@ -436,10 +436,18 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       const SizedBox(height: 8),
                       _buildMenuButton(
                           svgIconPath: 'assets/icons/hiking.svg',
-                          tag: 'mountain',
+                          tag: 'climbing',
                           activityType: 'CLIMBING',
                           onPressed: () async {
                             //TODO:
+                            setState(() {
+                              selectedActivityType = "CLIMBING";
+                              selectedActivityIcon = 'assets/icons/hiking.svg';
+                              isActivitiesMenuOpen = false;
+                              isLoading = true;
+                            });
+                            await fetchPolygons(recent: false);
+                            setState(() => isLoading = false);
                           }),
                     ],
                   )

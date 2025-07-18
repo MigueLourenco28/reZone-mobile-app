@@ -125,7 +125,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       "email": regEmail.text,
       "password": regPassword.text,
       "confirmation": regConfirm.text,
-      "full_name": regFullName.text,
+      "fullName": regFullName.text,
       "nationality": regNationality.text,
       "residenceCountry": regCountryOfRes.text,
       "address": regAddress.text,

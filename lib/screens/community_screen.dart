@@ -53,16 +53,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
     // Check if the token is still valid, if not, redirect to login page;
     final authData = await LocalStorageUtil.getAuthData();
     final tokenExp = authData['tokenExp'];
-
     if (tokenExp == null) {
-      widget.onLogoutSuccess();
+      // No expiration info, redirect to login
+      Navigator.pushReplacementNamed(context, '/');
+      return;
     }
-
     final expiration = int.tryParse(tokenExp);
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    if (now >= expiration) {
-      widget.onLogoutSuccess();
+    if (expiration == null) {
+      Navigator.pushReplacementNamed(context, '/');
+      return;
     }
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (now >= expiration) widget.onLogoutSuccess();
   }
 
   Future<void> fetchUserFriends() async {
@@ -394,6 +396,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                               builder: (context) => ChatScreen(
                                 friendUsername: user['username']!.trim(),
                                 tokenID: widget.tokenID,
+                                onLogoutSuccess: widget.onLogoutSuccess,
                               ),
                             ),
                           );

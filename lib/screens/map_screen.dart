@@ -92,18 +92,20 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
   void checkTokenExp() async {
     // Check if the token is still valid, if not, redirect to login page;
-   final authData = await LocalStorageUtil.getAuthData();
-   final tokenExp = authData['tokenExp'];
-
-   if (tokenExp == null) {
-     widget.onLogoutSuccess();
-   }
-
-   final expiration = int.tryParse(tokenExp);
-   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-   if (now >= expiration) {
-     widget.onLogoutSuccess();
-   }
+    final authData = await LocalStorageUtil.getAuthData();
+    final tokenExp = authData['tokenExp'];
+    if (tokenExp == null) {
+      // No expiration info, redirect to login
+      Navigator.pushReplacementNamed(context, '/');
+      return;
+    }
+    final expiration = int.tryParse(tokenExp);
+    if (expiration == null) {
+      Navigator.pushReplacementNamed(context, '/');
+      return;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (now >= expiration) widget.onLogoutSuccess();
   }
 
   void toggleActivitiesMenu() {

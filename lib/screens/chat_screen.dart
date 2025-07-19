@@ -1,12 +1,28 @@
-import 'dart:convert';
+import '../utils/local_storage_util.dart';
+import '../main.dart';
+import 'community_screen.dart';
+import 'activities_screen.dart';
+import 'map_screen.dart';
+import 'profile_screen.dart';
+import 'settings_screen.dart';
+import 'chat_screen.dart';
 
+import 'dart:convert';
+import 'dart:math';
+import 'dart:ui';
+import 'package:jwt_decode/jwt_decode.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
 class ChatScreen extends StatefulWidget {
   final String friendUsername;
   final String tokenID;
-  const ChatScreen({super.key, required this.friendUsername, required this.tokenID});
+  final VoidCallback onLogoutSuccess;
+  const ChatScreen({super.key, required this.friendUsername, required this.tokenID, required this.onLogoutSuccess});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -24,16 +40,18 @@ class _ChatScreenState extends State<ChatScreen> {
     // Check if the token is still valid, if not, redirect to login page;
     final authData = await LocalStorageUtil.getAuthData();
     final tokenExp = authData['tokenExp'];
-
     if (tokenExp == null) {
-      widget.onLogoutSuccess();
+      // No expiration info, redirect to login
+      Navigator.pushReplacementNamed(context, '/');
+      return;
     }
-
     final expiration = int.tryParse(tokenExp);
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    if (now >= expiration) {
-      widget.onLogoutSuccess();
+    if (expiration == null) {
+      Navigator.pushReplacementNamed(context, '/');
+      return;
     }
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (now >= expiration) widget.onLogoutSuccess();
   }
 
   void _openGeminiChat() {

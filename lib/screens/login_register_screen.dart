@@ -337,7 +337,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text("Forgot Password"),
-                  content: const Text("Feature not implemented yet."),
+                  content: const Text("Still in development, please contact an admin to reset your password."),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),

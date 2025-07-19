@@ -119,6 +119,27 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   }
 
   Future<void> attemptRegister() async {
+    if (regUserName.text.isEmpty) {
+      showMessage("Username is required");
+      return;
+    }
+    if (regEmail.text.isEmpty) {
+      showMessage("Email is required");
+      return;
+    }
+    if (regPassword.text.isEmpty) {
+      showMessage("Password is required");
+      return;
+    }
+    if (regConfirm.text.isEmpty) {
+      showMessage("Confirm password is required");
+      return;
+    }
+    if (regPassword.text != regConfirm.text) {
+      showMessage("Passwords do not match");
+      return;
+    }
+
     final body = {
       "userId": _generatedUserId,
       "username": regUserName.text,
@@ -139,10 +160,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       "ccValidUntil": regCCValidUntil.text,
       "birthDate": regBirthDate.text
     };
-    if (body.entries.any((e) => e.value is String && (e.value as String).isEmpty)) {
-      showMessage("All text fields are required");
-      return;
-    }
+
     setState(() => isLoading = true);
     try {
       final res = await http.post(
@@ -262,6 +280,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   Widget _styledTextField({
     required TextEditingController controller,
     required String label,
+    String? hintText,
     bool obscure = false,
     bool enabled = true,
   }) {
@@ -273,6 +292,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         enabled: enabled,
         decoration: InputDecoration(
           labelText: label,
+          hintText: hintText,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           filled: true,
           fillColor: Theme.of(context).inputDecorationTheme.fillColor ??
@@ -296,8 +316,17 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _styledTextField(controller: loginId, label: 'User ID'),
-        _styledTextField(controller: loginPassword, label: 'Password', obscure: true),
+        _styledTextField(
+          controller: loginId,
+          label: 'User ID',
+          hintText: 'Enter your user ID',
+        ),
+        _styledTextField(
+          controller: loginPassword,
+          label: 'Password',
+          hintText: 'Enter your password',
+          obscure: true,
+        ),
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerRight,
@@ -347,25 +376,96 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         _styledTextField(
           controller: TextEditingController(text: _generatedUserId.toString()),
           label: 'User ID',
+          hintText: 'Auto-generated user ID',
           enabled: false,
         ),
-        _styledTextField(controller: regUserName, label: 'Username'),
-        _styledTextField(controller: regEmail, label: 'Email'),
-        _styledTextField(controller: regPassword, label: 'Password', obscure: true),
-        _styledTextField(controller: regConfirm, label: 'Confirm Password', obscure: true),
-        _styledTextField(controller: regFullName, label: 'Full Name'),
-        _styledTextField(controller: regNationality, label: 'Nationality'),
-        _styledTextField(controller: regCountryOfRes, label: 'Country of Residence'),
-        _styledTextField(controller: regAddress, label: 'Address'),
-        _styledTextField(controller: regPostalCode, label: 'Postal Code'),
-        _styledTextField(controller: regPrimaryPhone, label: 'Primary Phone'),
-        _styledTextField(controller: regSecondaryPhone, label: 'Secondary Phone'),
-        _styledTextField(controller: regNIF, label: 'NIF'),
-        _styledTextField(controller: regCCNumber, label: 'CC Number'),
-        _styledTextField(controller: regCCIssueDate, label: 'CC Issue Date'),
-        _styledTextField(controller: regCCIssuePlace, label: 'CC Issue Place'),
-        _styledTextField(controller: regCCValidUntil, label: 'CC Valid Until'),
-        _styledTextField(controller: regBirthDate, label: 'Birth Date'),
+        _styledTextField(
+          controller: regUserName,
+          label: 'Username',
+          hintText: 'Enter your username',
+        ),
+        _styledTextField(
+          controller: regEmail,
+          label: 'Email',
+          hintText: 'Enter your email',
+        ),
+        _styledTextField(
+          controller: regPassword,
+          label: 'Password',
+          hintText: 'Enter your password',
+          obscure: true,
+        ),
+        _styledTextField(
+          controller: regConfirm,
+          label: 'Confirm Password',
+          hintText: 'Confirm your password',
+          obscure: true,
+        ),
+        _styledTextField(
+          controller: regFullName,
+          label: 'Full Name',
+          hintText: 'Enter your full name',
+        ),
+        _styledTextField(
+          controller: regNationality,
+          label: 'Nationality',
+          hintText: 'Enter your nationality',
+        ),
+        _styledTextField(
+          controller: regCountryOfRes,
+          label: 'Country of Residence',
+          hintText: 'Enter your country of residence',
+        ),
+        _styledTextField(
+          controller: regAddress,
+          label: 'Address',
+          hintText: 'Enter your address',
+        ),
+        _styledTextField(
+          controller: regPostalCode,
+          label: 'Postal Code',
+          hintText: 'Enter your postal code',
+        ),
+        _styledTextField(
+          controller: regPrimaryPhone,
+          label: 'Primary Phone',
+          hintText: 'Enter your primary phone',
+        ),
+        _styledTextField(
+          controller: regSecondaryPhone,
+          label: 'Secondary Phone',
+          hintText: 'Enter your secondary phone',
+        ),
+        _styledTextField(
+          controller: regNIF,
+          label: 'NIF',
+          hintText: 'Enter your NIF',
+        ),
+        _styledTextField(
+          controller: regCCNumber,
+          label: 'CC Number',
+          hintText: 'Enter your citizen card number',
+        ),
+        _styledTextField(
+          controller: regCCIssueDate,
+          label: 'CC Issue Date',
+          hintText: 'Enter CC issue date',
+        ),
+        _styledTextField(
+          controller: regCCIssuePlace,
+          label: 'CC Issue Place',
+          hintText: 'Enter CC issue place',
+        ),
+        _styledTextField(
+          controller: regCCValidUntil,
+          label: 'CC Valid Until',
+          hintText: 'Enter CC valid until date',
+        ),
+        _styledTextField(
+          controller: regBirthDate,
+          label: 'Birth Date',
+          hintText: 'Enter your birth date',
+        ),
         const SizedBox(height: 20),
         isLoading
             ? const Center(child: CircularProgressIndicator())

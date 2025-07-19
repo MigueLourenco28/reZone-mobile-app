@@ -38,6 +38,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   void initState() {
     super.initState();
+    checkTokenExp();
     final token = widget.tokenID;
     final parts = token.split('.');
     if (parts.length == 3) {
@@ -46,6 +47,22 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
     fetchPublicUsers();
     fetchUserFriends();
+  }
+
+  void checkTokenExp() async {
+    // Check if the token is still valid, if not, redirect to login page;
+    final authData = await LocalStorageUtil.getAuthData();
+    final tokenExp = authData['tokenExp'];
+
+    if (tokenExp == null) {
+      widget.onLogoutSuccess();
+    }
+
+    final expiration = int.tryParse(tokenExp);
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (now >= expiration) {
+      widget.onLogoutSuccess();
+    }
   }
 
   Future<void> fetchUserFriends() async {

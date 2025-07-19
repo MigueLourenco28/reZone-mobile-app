@@ -13,6 +13,29 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+    checkTokenExp();
+  }
+
+  void checkTokenExp() async {
+    // Check if the token is still valid, if not, redirect to login page;
+    final authData = await LocalStorageUtil.getAuthData();
+    final tokenExp = authData['tokenExp'];
+
+    if (tokenExp == null) {
+      widget.onLogoutSuccess();
+    }
+
+    final expiration = int.tryParse(tokenExp);
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (now >= expiration) {
+      widget.onLogoutSuccess();
+    }
+  }
+
   void _openGeminiChat() {
     print('Opening GeminiChatScreen - Button Pressed'); // Debug print
     Navigator.push(

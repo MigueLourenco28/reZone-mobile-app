@@ -38,25 +38,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void checkTokenExp() async {
     // Check if the token is still valid, if not, redirect to login page;
-    void checkToken() async {
-      final authData = await LocalStorageUtil.getAuthData();
-      final tokenExp = authData['tokenExp'];
+    final authData = await LocalStorageUtil.getAuthData();
+    final tokenExp = authData['tokenExp'];
 
-      if (tokenExp == null) {
-        // No expiration info, redirect to login
-        Navigator.pushReplacementNamed(context, '/');
-        return;
-      }
+    if (tokenExp == null) {
+      widget.onLogoutSuccess();
+    }
 
-      final expiration = int.tryParse(tokenExp);
-      if (expiration == null) {
-        Navigator.pushReplacementNamed(context, '/');
-        return;
-      }
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      if (now >= expiration) {
-        widget.onLogoutSuccess();
-      }
+    final expiration = int.tryParse(tokenExp);
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (now >= expiration) {
+      widget.onLogoutSuccess();
     }
   }
 

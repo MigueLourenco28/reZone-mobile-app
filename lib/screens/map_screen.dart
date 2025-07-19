@@ -18,6 +18,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
+
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+
 class MapScreen extends StatefulWidget {
   final String tokenID, userID;
   final VoidCallback onLogoutSuccess;
@@ -44,11 +48,24 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   String selectedActivityType = '';
   String? selectedActivityIcon; // holds SVG path
 
+  String? userRole;
+  bool get isPO => userRole == "PO";
+  bool isWorksheetSidebarOpen = false;
+  Map<String, dynamic>? selectedWorksheetDetails;
+
+  bool isTaskSidebarOpen = false;
+  List<Map<String, dynamic>> myTasks = [];
+
   @override
   void initState() {
     super.initState();
+
     checkTokenExp();
+    final payload = Jwt.parseJwt(widget.tokenID);
+    userRole = payload['role'];
+
     loadUserActivities();
+
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(_fadeAnimation);
@@ -74,27 +91,19 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   }
 
   void checkTokenExp() async {
-    // Check if the token is still valid, if not, redirect to login page;m
-    void checkToken() async {
-      final authData = await LocalStorageUtil.getAuthData();
-      final tokenExp = authData['tokenExp'];
+    // Check if the token is still valid, if not, redirect to login page;
+   final authData = await LocalStorageUtil.getAuthData();
+   final tokenExp = authData['tokenExp'];
 
-      if (tokenExp == null) {
-        // No expiration info, redirect to login
-        Navigator.pushReplacementNamed(context, '/');
-        return;
-      }
+   if (tokenExp == null) {
+     widget.onLogoutSuccess();
+   }
 
-      final expiration = int.tryParse(tokenExp);
-      if (expiration == null) {
-        Navigator.pushReplacementNamed(context, '/');
-        return;
-      }
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      if (now >= expiration) {
-        widget.onLogoutSuccess();
-      }
-    }
+   final expiration = int.tryParse(tokenExp);
+   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+   if (now >= expiration) {
+     widget.onLogoutSuccess();
+   }
   }
 
   void toggleActivitiesMenu() {
@@ -272,6 +281,236 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     }
   }
 
+  Future<void> drawMyTaskPolygons() async {
+    try {
+      final res = await http.get(
+        Uri.parse("https://rezone-459910.oa.r.appspot.com/rest/execution/mytasks"),
+        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
+      );
+
+      if (res.statusCode != 200) throw Exception("Erro ao buscar tarefas");
+      final List<Map<String, dynamic>> tasks = List<Map<String, dynamic>>.from(
+          jsonDecode(res.body)
+      );
+      Set<Polygon> newPolygons = {};
+      List<LatLng> allPoints = [];
+
+      final response = await http.get(
+        Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/worksheet/'),
+        headers: {'Authorization': 'Bearer ${widget.tokenID}'},
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception("Status: ${response.statusCode}, Body: ${response.body}");
+      }
+
+      final List<dynamic> worksheets = jsonDecode(response.body);
+
+      if (worksheets.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Nenhuma folha de obra disponível.")));
+        return;
+      }
+
+      for (final task in tasks) {
+        // Obter o polígono associado à tarefa
+        // Contruír o polígono no mapa através do id do poligono na worksheet e folha de execução
+        // Se a tarefa ja foi concluida o polígono aparece verde
+        // Se não foi concluida o polígono aparece azul e, quando o user clica nela, aparece o forms a ser completo
+        // Usar a função _fetchPolygons como exemplo
+        final executionWorkSheetId = task['id'].split("_")[0];
+        // Get detailed worksheet info
+
+        final isCompleted = task['status'] == 'COMPLETED';
+
+        Map<String, dynamic> detailedWorksheet = {};
+
+        for (final ws in worksheets) {
+          final id = ws['id'];
+          if (id != executionWorkSheetId) continue;
+
+          final detailRes = await http.post(
+            Uri.parse('https://rezone-459910.oa.r.appspot.com/rest/worksheet/detailed'),
+            headers: {
+              'Authorization': 'Bearer ${widget.tokenID}',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({"id": id}),
+          );
+
+          if (detailRes.statusCode != 200) continue;
+
+          final detailData = jsonDecode(detailRes.body);
+          if (detailData['WorkSheet']?['workSheet_issue_date'] == null ||
+              detailData['Features'] == null) continue;
+
+          detailedWorksheet = {
+            "id": id,
+            "issue_date": detailData['WorkSheet']['workSheet_issue_date'],
+            "features": detailData['Features'],
+          };
+        }
+
+        if (detailedWorksheet.isEmpty || detailedWorksheet['features'] == null) continue;
+
+        final features = detailedWorksheet['features'] as List;
+
+        final taskPolygonId = task['polygonId'].toString();
+
+        for (final f in features) {
+          final polygonId = f['feature_polygon_id'].toString();
+          if(polygonId != taskPolygonId) continue;
+          final coords = f['feature_coordinates'];
+
+          if (coords == null || coords.length < 6) continue;
+
+          final latlngList = <LatLng>[];
+          for (int i = 0; i < coords.length - 1; i += 2) {
+            final x = coords[i];
+            final y = coords[i + 1];
+
+            final lat = 39.5 + (y / 1e5);
+            final lng = -8.0 + (x / 1e5);
+
+            latlngList.add(LatLng(lat, lng));
+          }
+
+          // Ensure it closes
+          if (latlngList.first != latlngList.last) {
+            latlngList.add(latlngList.first);
+          }
+
+          LatLng centroid = calculateCentroid(latlngList);
+
+          allPoints.addAll(latlngList);
+
+          newPolygons.add(
+            Polygon(
+              polygonId: PolygonId("task_$polygonId"),
+              points: latlngList,
+              strokeColor: isCompleted ? Colors.green[800]! : Colors.blue[800]!,
+              fillColor: isCompleted
+                  ? Colors.green.withOpacity(0.25)
+                  : Colors.blue.withOpacity(0.2),
+              strokeWidth: 3,
+              consumeTapEvents: true,
+              onTap: () {
+                if (!isCompleted) _openTaskForm(task);
+                else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Task already completed.")));
+              },
+            ),
+          );
+        }
+      }
+
+      setState(() {
+        polygons = newPolygons;
+        myTasks = tasks;
+      });
+
+      if (newPolygons.isNotEmpty && mapController != null) {
+        final allPoints = newPolygons.expand((p) => p.points).toList();
+        final bounds = _computeBounds(allPoints);
+        mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Nenhuma tarefa encontrada.")));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro ao desenhar tarefas: $e")));
+    }
+  }
+
+  void _openTaskForm(Map<String, dynamic> task) {
+    final descController = TextEditingController();
+    final areaController = TextEditingController();
+    final obsController = TextEditingController();
+    bool isCompleted = false;
+    List<XFile> photos = [];
+    PlatformFile? gpxFile;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: MediaQuery.of(context).viewInsets,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Tarefa: ${task['operationCode']} (Polígono ${task['polygonId']})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 10),
+                TextField(controller: descController, decoration: const InputDecoration(labelText: "Descrição da Atividade")),
+                TextField(controller: areaController, decoration: const InputDecoration(labelText: "Área (ha)"), keyboardType: TextInputType.number),
+                TextField(controller: obsController, decoration: const InputDecoration(labelText: "Observações")),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () async {
+                    final picker = ImagePicker();
+                    final picked = await picker.pickMultiImage();
+                    if (picked.isNotEmpty) {
+                      setState(() => photos = picked);
+                    }
+                  },
+                  child: const Text("Selecionar Fotos"),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['gpx']);
+                    if (picked != null) {
+                      setState(() => gpxFile = picked.files.first);
+                    }
+                  },
+                  child: const Text("Selecionar Ficheiro GPX"),
+                ),
+                Row(
+                  children: [
+                    Checkbox(value: isCompleted, onChanged: (v) => setState(() => isCompleted = v ?? false)),
+                    const Text("Marcar como concluída")
+                  ],
+                ),
+                ElevatedButton(
+                    onPressed: () async {
+                      List<String> base64Photos = [];
+                      for (final xfile in photos) {
+                        final bytes = await xfile.readAsBytes();
+                        base64Photos.add("data:image/jpeg;base64,${base64Encode(bytes)}");
+                      }
+                      String? gpxContent;
+                      if (gpxFile != null) gpxContent = utf8.decode(gpxFile!.bytes!);
+
+                      final body = {
+                        "executionTaskId": task['id'],
+                        "activityDescription": descController.text,
+                        "areaHa": double.tryParse(areaController.text) ?? 0,
+                        "observations": obsController.text,
+                        "photos": base64Photos,
+                        "gpsTrack": gpxContent ?? "",
+                        "markTaskAsCompleted": isCompleted
+                      };
+
+                      final res = await http.post(
+                        Uri.parse("https://rezone-459910.oa.r.appspot.com/rest/execution/activity/log"),
+                        headers: {'Authorization': 'Bearer ${widget.tokenID}', 'Content-Type': 'application/json'},
+                        body: jsonEncode(body),
+                      );
+
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(res.statusCode == 200 ? 'Atividade registada!' : 'Erro: ${res.body}'),
+                      ));
+                    },
+                    child: const Text("Submeter")
+                )
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void onPolygonSelected(String polygonId, String polygonCenter) {
     selectedPoint = null;
 
@@ -386,37 +625,31 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                FloatingActionButton(
-                  heroTag: 'menuToggle',
-                  onPressed: toggleActivitiesMenu,
-                  backgroundColor: Colors.green,
-                  child: isActivitiesMenuOpen
-                      ? const Icon(Icons.close, color: Colors.white)
-                      : (selectedActivityIcon != null
-                      ? SvgPicture.asset(selectedActivityIcon!, width: 24, height: 24, color: Colors.white)
-                      : const Icon(Icons.menu, color: Colors.white)),
-                ),
+                isPO
+                    ? FloatingActionButton(
+                      heroTag: 'tasksToggle',
+                      backgroundColor: Colors.green,
+                      onPressed: () async {
+                        setState(() => isLoading = true);
+                        await drawMyTaskPolygons();
+                        setState(() => isLoading = false);
+                      },
+                      child: const Icon(Icons.assignment_turned_in, color: Colors.white),
+                    )
+                    : FloatingActionButton(
+                      heroTag: 'activitiesToggle',
+                      onPressed: toggleActivitiesMenu,
+                      backgroundColor: Colors.green,
+                      child: isActivitiesMenuOpen
+                          ? const Icon(Icons.close, color: Colors.white)
+                          : (selectedActivityIcon != null
+                          ? SvgPicture.asset(selectedActivityIcon!, width: 24, height: 24, color: Colors.white)
+                          : const Icon(Icons.menu, color: Colors.white)),
+                    ),
                 const SizedBox(height: 12),
-                if (isActivitiesMenuOpen) // TODO: add animation + make icon color match dark/light mode
+                if (!isPO && isActivitiesMenuOpen) // TODO: add animation + make icon color match dark/light mode
                   Column(
                     children: [
-                      _buildMenuButton(
-                          svgIconPath: 'assets/icons/camping.svg',
-                          tag: 'camping',
-                          activityType: 'CAMPING',
-                          onPressed: () async {
-                            // TODO: Filter worksheets by the oldest date and replace the map
-                            // with the polygons of the worksheets that were created the oldest
-                            setState(() {
-                              selectedActivityType = "CAMPING";
-                              selectedActivityIcon = 'assets/icons/camping.svg';
-                              isActivitiesMenuOpen = false;
-                              isLoading = true;
-                            });
-                            await fetchPolygons(recent: true);
-                            setState(() => isLoading = false);
-                          }),
-                      const SizedBox(height: 8),
                       _buildMenuButton(
                           svgIconPath: 'assets/icons/footprint.svg',
                           tag: 'jogging',
@@ -439,7 +672,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           tag: 'climbing',
                           activityType: 'CLIMBING',
                           onPressed: () async {
-                            //TODO:
+                            // TODO: Filter worksheets by the worksheets that not as recent
+                            //  and replace the map with the polygons the worksheets
                             setState(() {
                               selectedActivityType = "CLIMBING";
                               selectedActivityIcon = 'assets/icons/hiking.svg';
@@ -449,8 +683,25 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                             await fetchPolygons(recent: false);
                             setState(() => isLoading = false);
                           }),
+                      const SizedBox(height: 8),
+                      _buildMenuButton(
+                          svgIconPath: 'assets/icons/camping.svg',
+                          tag: 'camping',
+                          activityType: 'CAMPING',
+                          onPressed: () async {
+                            // TODO: Filter worksheets by the oldest date and replace the map
+                            // with the polygons of the worksheets that were created the oldest
+                            setState(() {
+                              selectedActivityType = "CAMPING";
+                              selectedActivityIcon = 'assets/icons/camping.svg';
+                              isActivitiesMenuOpen = false;
+                              isLoading = true;
+                            });
+                            await fetchPolygons(recent: true);
+                            setState(() => isLoading = false);
+                          }),
                     ],
-                  )
+                  ),
               ],
             ),
           ),
@@ -505,7 +756,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   )
               ],
             ),
-          )
+          ),
         ],
       ),
     );

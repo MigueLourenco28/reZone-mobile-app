@@ -40,7 +40,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   MapType currentMapType = MapType.normal;
   bool isMapTypeMenuOpen = false;
   IconData currentMapIcon = Icons.layers; // Default icon
-  Set<String> userActivityPlaces = {};
+  Map<String, String> userActivityPlaces = {};
 
   GoogleMapController? mapController;
   Set<Polygon> polygons = {};
@@ -55,6 +55,9 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
   bool isTaskSidebarOpen = false;
   List<Map<String, dynamic>> myTasks = [];
+
+  Set<Marker> polygonMarkers = {};
+
 
   @override
   void initState() {
@@ -74,19 +77,32 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   Future<void> loadUserActivities() async {
     try {
       final res = await http.get(
-        Uri.parse("https://rezone-459910.oa.r.appspot.com/activities/list"),
+        Uri.parse("https://rezone-459910.oa.r.appspot.com/rest/activities/list"),
         headers: {'Authorization': 'Bearer ${widget.tokenID}'},
       );
 
       if (res.statusCode == 200) {
         final List<dynamic> data = jsonDecode(res.body);
-        final Set<String> places = data.map<String>((act) => act['activityPlace']?.toString() ?? "").toSet();
-        setState(() => userActivityPlaces = places);
+        final Map<String, String> placesMap = {};
+
+        for (final act in data) {
+          final place = act['activityPlace']?.toString();
+          final type = act['activityType']?.toString();
+          if (place != null && type != null) {
+            placesMap[place] = type;
+          }
+        }
+
+        setState(() => userActivityPlaces = placesMap);
       } else {
-        debugPrint("Failed to load activities: ${res.body}");
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Failed to load activities: ${res.body}"))
+        );
       }
     } catch (e) {
-      debugPrint("Error loading activities: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error loading activities: $e"))
+      );
     }
   }
 
@@ -150,6 +166,19 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     );
   }
 
+  Future<BitmapDescriptor> createColoredMarker(Color color) async {
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    final paint = Paint()..color = color;
+    canvas.drawCircle(const Offset(25, 25), 20, paint);
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(50, 50);
+    final byteData = await img.toByteData(format: ImageByteFormat.png);
+    final bytes = byteData!.buffer.asUint8List();
+    return BitmapDescriptor.fromBytes(bytes);
+  }
+
+
   // Dummy function to fetch polygons
   Future<void> fetchPolygons({required bool recent}) async {
     try {
@@ -170,6 +199,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       }
 
       List<Map<String, dynamic>> detailedWorksheets = [];
+
+      Set<Marker> newPolygonMarkers = {};
 
       for (final ws in worksheets) {
         final id = ws['id'];
@@ -243,7 +274,17 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           String placeKey = "${centroid.latitude},${centroid.longitude}";
 
           // Choose polygon color
-          final bool hasActivity = userActivityPlaces.contains(placeKey);
+          final bool hasActivity = userActivityPlaces.containsKey(placeKey) &&
+              userActivityPlaces[placeKey] == selectedActivityType;
+
+          final markerColor = hasActivity ? Colors.green : Colors.blue;
+          final markerIcon = await createColoredMarker(markerColor);
+
+          newPolygonMarkers.add(Marker(
+            markerId: MarkerId("marker_$polygonId"),
+            position: centroid,
+            icon: markerIcon,
+          ));
 
           newPolygons.add(
             Polygon(
@@ -255,7 +296,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   : Colors.blue.withOpacity(0.2),
               strokeWidth: 3,
               consumeTapEvents: true,
-              onTap: () => onPolygonSelected(polygonId, placeKey),
+                onTap: () {
+                  if(!hasActivity) onPolygonSelected(polygonId, placeKey);
+                  else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Activity already added!")));
+                }
             ),
           );
 
@@ -263,7 +307,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         }
       }
 
-      setState(() => polygons = newPolygons);
+      setState(()  {
+        polygons = newPolygons;
+        polygonMarkers = newPolygonMarkers;
+      });
 
       if (allPoints.isNotEmpty && mapController != null) {
         LatLngBounds bounds = _computeBounds(allPoints);
@@ -312,6 +359,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Nenhuma folha de obra disponível.")));
         return;
       }
+
+      Set<Marker> newPolygonMarkers = {};
 
       for (final task in tasks) {
         // Obter o polígono associado à tarefa
@@ -383,6 +432,15 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
           LatLng centroid = calculateCentroid(latlngList);
 
+          final markerColor = isCompleted ? Colors.green : Colors.blue;
+          final markerIcon = await createColoredMarker(markerColor);
+
+          newPolygonMarkers.add(Marker(
+            markerId: MarkerId("marker_task_$polygonId"),
+            position: centroid,
+            icon: markerIcon,
+          ));
+
           allPoints.addAll(latlngList);
 
           newPolygons.add(
@@ -407,6 +465,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       setState(() {
         polygons = newPolygons;
         myTasks = tasks;
+        polygonMarkers = newPolygonMarkers;
       });
 
       if (newPolygons.isNotEmpty && mapController != null) {
@@ -612,6 +671,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             initialCameraPosition: const CameraPosition(target: _center, zoom: 13),
             polygons: polygons,
             mapType: currentMapType,
+            markers: polygonMarkers,
           ),
 
           if (isLoading)

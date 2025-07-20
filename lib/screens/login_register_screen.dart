@@ -1,16 +1,8 @@
-// screens/login_register_screen.dart
 import '../utils/local_storage_util.dart';
-
-import '../main.dart';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:ui';
-import 'package:jwt_decode/jwt_decode.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
 class LoginRegisterScreen extends StatefulWidget {
@@ -29,7 +21,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _generatedUserId = Random().nextInt(90000000) + 10000000; // TODO: check if it doesn't already exist
+    _generatedUserId = Random().nextInt(90000000) + 10000000;
   }
 
   // Login
@@ -332,7 +324,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () {
-              // TODO: Implement forgot password functionality
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(

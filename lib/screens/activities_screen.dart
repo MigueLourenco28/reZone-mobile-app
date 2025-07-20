@@ -1,14 +1,5 @@
-// screens/activities_screen.dart
 import '../utils/local_storage_util.dart';
-import '../main.dart';
-import 'community_screen.dart';
-import 'activities_screen.dart';
-import 'map_screen.dart';
-import 'profile_screen.dart';
-import 'settings_screen.dart';
-
 import 'dart:convert';
-import 'package:jwt_decode/jwt_decode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;

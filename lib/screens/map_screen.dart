@@ -1,20 +1,10 @@
-// screens/map_screen.dart
 import '../utils/local_storage_util.dart';
-import '../main.dart';
-import 'community_screen.dart';
-import 'activities_screen.dart';
-import 'map_screen.dart';
-import 'profile_screen.dart';
-import 'settings_screen.dart';
-
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
 import 'package:jwt_decode/jwt_decode.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
@@ -709,7 +699,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           : const Icon(Icons.menu, color: Colors.white)),
                     ),
                 const SizedBox(height: 12),
-                if (!isPO && isActivitiesMenuOpen) // TODO: add animation + make icon color match dark/light mode
+                if (!isPO && isActivitiesMenuOpen)
                   Column(
                     children: [
                       _buildMenuButton(
@@ -717,7 +707,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           tag: 'jogging',
                           activityType: 'JOGGING',
                           onPressed: () async {
-                            // TODO: Filter worksheets by all the worksheets and replace the map
                             // with the polygons of all the worksheets
                             setState(() {
                               selectedActivityType = "JOGGING";
@@ -734,7 +723,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           tag: 'climbing',
                           activityType: 'CLIMBING',
                           onPressed: () async {
-                            // TODO: Filter worksheets by the worksheets that not as recent
                             //  and replace the map with the polygons the worksheets
                             setState(() {
                               selectedActivityType = "CLIMBING";
@@ -751,7 +739,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           tag: 'camping',
                           activityType: 'CAMPING',
                           onPressed: () async {
-                            // TODO: Filter worksheets by the oldest date and replace the map
                             // with the polygons of the worksheets that were created the oldest
                             setState(() {
                               selectedActivityType = "CAMPING";

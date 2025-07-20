@@ -2,21 +2,9 @@ import 'package:flutter/material.dart';
 import 'screens/login_register_screen.dart';
 import 'screens/home_screen.dart';
 import 'utils/local_storage_util.dart';
-import 'package:jwt_decode/jwt_decode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math';
-import 'dart:ui';
-import 'package:jwt_decode/jwt_decode.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:http/http.dart' as http;
-//TODO: guardar na base de dados local "util" o user id, token id e expiration date do token
 
 void main() => runApp(const MyApp());
 

@@ -1,6 +1,5 @@
 import '../utils/local_storage_util.dart';
 import '../main.dart';
-import 'community_screen.dart';
 import 'activities_screen.dart';
 import 'map_screen.dart';
 import 'profile_screen.dart';
@@ -31,7 +30,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
   List<Map<String, String>> publicUsers = [];
   List<Map<String, String>> userFriends = [];
   bool isLoading = true;
-  int selectedTab = 0; // 0 = Friends, 1 = Chat
   String searchQuery = '';
   String currentUsername = '';
 
@@ -50,11 +48,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   void checkTokenExp() async {
-    // Check if the token is still valid, if not, redirect to login page;
     final authData = await LocalStorageUtil.getAuthData();
     final tokenExp = authData['tokenExp'];
     if (tokenExp == null) {
-      // No expiration info, redirect to login
       Navigator.pushReplacementNamed(context, '/');
       return;
     }
@@ -131,6 +127,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         setState(() {
           userFriends.add({'username': friend});
         });
+        await fetchPublicUsers(); // Refresh public users to update the list
       } else {
         throw Exception('Failed to add friend: ${res.body}');
       }
@@ -154,6 +151,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         setState(() {
           userFriends.removeWhere((f) => f['username'] == friend);
         });
+        await fetchPublicUsers(); // Refresh public users to update the list
       } else {
         throw Exception('Failed to remove friend: ${res.body}');
       }
@@ -269,9 +267,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   height: 300,
                   child: ListView(
                     children: publicUsers
-                        .where((u) =>
-                    u['username']!.toLowerCase().contains(searchQuery.toLowerCase()) &&
-                        !isFriend(u['username']!))
+                        .where((u) => u['username']!.toLowerCase().contains(searchQuery.toLowerCase()) && !isFriend(u['username']!))
                         .map((user) => ListTile(
                       onTap: () => showUserPopup(user),
                       leading: const CircleAvatar(child: Icon(Icons.person)),
@@ -300,7 +296,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   void _openGeminiChat() {
-    print('Opening GeminiChatScreen from CommunityScreen'); // Debug print
+    print('Opening GeminiChatScreen from CommunityScreen');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -311,7 +307,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('Building CommunityScreen with FloatingActionButton'); // Debug print
+    print('Building CommunityScreen with FloatingActionButtons');
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -326,110 +322,57 @@ class _CommunityScreenState extends State<CommunityScreen> {
       body: SafeArea(
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
-            : Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: () => setState(() => selectedTab = 0),
-                  child: Text(
-                    "Friends",
-                    style: TextStyle(
-                      fontWeight: selectedTab == 0 ? FontWeight.bold : FontWeight.normal,
-                      color: selectedTab == 0 ? Colors.green : Colors.grey,
-                    ),
-                  ),
-                ),
-                const Text("|"),
-                TextButton(
-                  onPressed: () => setState(() => selectedTab = 1),
-                  child: Text(
-                    "Chat",
-                    style: TextStyle(
-                      fontWeight: selectedTab == 1 ? FontWeight.bold : FontWeight.normal,
-                      color: selectedTab == 1 ? Colors.green : Colors.grey,
-                    ),
-                  ),
-                ),
-              ],
+            : userFriends.isEmpty
+            ? const Center(child: Text("No friends yet"))
+            : ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: userFriends.length,
+          itemBuilder: (context, index) {
+            final user = userFriends[index];
+            return Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: ListTile(
+                onTap: () => showUserPopup(user),
+                leading: const CircleAvatar(child: Icon(Icons.person)),
+                title: Text(user['username'] ?? 'Unnamed'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              ),
+            );
+          },
+        ),
+      ),
+      floatingActionButton: Stack(
+        children: [
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: showAddFriendPopup,
+              backgroundColor: Colors.green,
+              mini: false,
+              tooltip: 'Add Friend',
+              child: const Icon(Icons.person_add_alt_1, color: Colors.white),
             ),
-            Expanded(
-              child: selectedTab == 0
-                  ? userFriends.isEmpty
-                  ? const Center(child: Text("No friends yet"))
-                  : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: userFriends.length,
-                itemBuilder: (context, index) {
-                  final user = userFriends[index];
-                  return Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    child: ListTile(
-                      onTap: () => showUserPopup(user),
-                      leading: const CircleAvatar(child: Icon(Icons.person)),
-                      title: Text(user['username'] ?? 'Unnamed'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    ),
-                  );
-                },
-              )
-                  : userFriends.isEmpty
-                  ? const Center(child: Text("No friends to chat with"))
-                  : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: userFriends.length,
-                itemBuilder: (context, index) {
-                  final user = userFriends[index];
-                  if (user['username'] != null && user['username']!.isNotEmpty) {
-                    print('Opening chat with friendUsername: ${user['username']}'); // Debug print
-                    return Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: ListTile(
-                        onTap: () {
-                          print('Navigating to ChatScreen with friend: ${user['username']}'); // Debug print
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ChatScreen(
-                                friendUsername: user['username']!.trim(),
-                                tokenID: widget.tokenID,
-                                onLogoutSuccess: widget.onLogoutSuccess,
-                              ),
-                            ),
-                          );
-                        },
-                        leading: const CircleAvatar(child: Icon(Icons.person)),
-                        title: Text(user['username'] ?? 'Unnamed'),
-                        trailing: const Icon(Icons.chat, size: 16),
-                      ),
-                    );
-                  } else {
-                    return const SizedBox.shrink(); // Skip invalid users
-                  }
-                },
+          ),
+          Positioned(
+            bottom: 16,
+            left: 50, // Adjusted to account for default padding
+            child: FloatingActionButton(
+              onPressed: _openGeminiChat,
+              backgroundColor: Colors.green,
+              mini: false,
+              tooltip: "Rezone's AI Assistant",
+              child: SvgPicture.asset(
+                'assets/icons/gemini.svg',
+                width: 28,
+                height: 28,
+                color: Colors.white,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: selectedTab == 0 ? showAddFriendPopup : _openGeminiChat,
-        backgroundColor: Colors.green,
-        mini: false,
-        tooltip: selectedTab == 0 ? 'Add Friend' : "Rezone's AI Assistant",
-        child: selectedTab == 0
-            ? const Icon(Icons.person_add_alt_1, color: Colors.white)
-            : SvgPicture.asset(
-          'assets/icons/gemini.svg',
-          width: 28,
-          height: 28,
-          color: Colors.white, // Apply white tint like an Icon
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, // Bottom-right
     );
   }
 }

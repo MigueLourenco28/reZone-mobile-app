@@ -444,142 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text(
-              'Profile',
-              style: TextStyle(
-                fontFamily: 'Handler',
-                fontSize: 36,
-              ),
-            ),
-            SizedBox(width: 10),
-            Icon(Icons.person, size: 32),
-          ],
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Card(
-                elevation: 3,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hello, ${widget.userID}',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 12),
-                      SwitchListTile(
-                        title: const Text("Profile Privacy"),
-                        subtitle: Text(
-                          isPrivate ? "Your profile is PRIVATE" : "Your profile is PUBLIC",
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        value: isPrivate,
-                        onChanged: _changeProfileVisibility,
-                        activeColor: Colors.blue,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Account Actions',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const Divider(thickness: 1.2),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                ),
-                onPressed: () => _showProfileInformation(context),
-                icon: const Icon(Icons.info_outline),
-                label: const Text('View Profile Information'),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                ),
-                onPressed: () => _updateProfileInformation(context),
-                icon: const Icon(Icons.edit),
-                label: const Text('Update Profile Information'),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                ),
-                onPressed: () => _changePassword(context),
-                icon: const Icon(Icons.lock_reset),
-                label: const Text('Change Password'),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                ),
-                onPressed: () => _checkAccountStatus(),
-                icon: const Icon(Icons.info_outline),
-                label: const Text('Check Account Status'),
-              ),
-              _buildAdminSection(), // This line activates the admin section
-              const SizedBox(height: 30),
-              const Divider(thickness: 1.5),
-              const SizedBox(height: 16),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => _logout(context),
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text(
-                    'Log Out',
-                    style: TextStyle(color: Colors.red, fontSize: 16),
-                  ),
-                ),
-              ),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => _requestAccountRemoval(context),
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                  label: const Text(
-                    'Request Account Removal',
-                    style: TextStyle(color: Colors.redAccent, fontSize: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-// Admin Section with all buttons, shown only if userRole is SYSADMIN or SYSBO
+  // Admin Section with all buttons, shown only if userRole is SYSADMIN or SYSBO
 
   Widget _buildAdminSection() {
     if (widget.userRole != 'SYSADMIN' && widget.userRole != 'SYSBO') {
@@ -1159,6 +1024,141 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Close'),
           ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Profile',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+            ),
+            Icon(
+                Icons.person,
+                size: 45.0),
+          ],
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Hello, ${widget.userID}',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      SwitchListTile(
+                        title: const Text("Profile Privacy"),
+                        subtitle: Text(
+                          isPrivate ? "Your profile is PRIVATE" : "Your profile is PUBLIC",
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        value: isPrivate,
+                        onChanged: _changeProfileVisibility,
+                        activeColor: Colors.blue,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Account Actions',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const Divider(thickness: 1.2),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                ),
+                onPressed: () => _showProfileInformation(context),
+                icon: const Icon(Icons.info_outline),
+                label: const Text('View Profile Information'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                ),
+                onPressed: () => _updateProfileInformation(context),
+                icon: const Icon(Icons.edit),
+                label: const Text('Update Profile Information'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                ),
+                onPressed: () => _changePassword(context),
+                icon: const Icon(Icons.lock_reset),
+                label: const Text('Change Password'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                ),
+                onPressed: () => _checkAccountStatus(),
+                icon: const Icon(Icons.info_outline),
+                label: const Text('Check Account Status'),
+              ),
+              _buildAdminSection(), // This line activates the admin section
+              const SizedBox(height: 30),
+              const Divider(thickness: 1.5),
+              const SizedBox(height: 16),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => _logout(context),
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(color: Colors.red, fontSize: 16),
+                  ),
+                ),
+              ),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => _requestAccountRemoval(context),
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  label: const Text(
+                    'Request Account Removal',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

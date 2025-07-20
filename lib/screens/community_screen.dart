@@ -309,16 +309,22 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Widget build(BuildContext context) {
     print('Building CommunityScreen with FloatingActionButtons');
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Community',
-          style: TextStyle(
-            fontFamily: 'Handler',
-            fontSize: 45.0,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Community',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+            ),
+            Icon(
+              Icons.groups,
+              size: 45.0,
+            ),
+          ]
+      )),
       body: SafeArea(
         child: isLoading
             ? const Center(child: CircularProgressIndicator())

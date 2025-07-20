@@ -156,10 +156,22 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Activities", style: TextStyle(fontFamily: 'Handler', fontSize: 32)),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Activities',
+              style: TextStyle(
+                fontFamily: 'Handler',
+                fontSize: 45.0,
+              ),
+            ),
+            Icon(
+              Icons.landscape,
+              size: 45.0,
+            ),
+          ]
+      )),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : userActivities.isEmpty

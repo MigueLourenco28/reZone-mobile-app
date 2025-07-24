@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:url_launcher/url_launcher.dart';
+
 class ActivitiesScreen extends StatefulWidget {
   final String tokenID;
   final VoidCallback onLogoutSuccess;
@@ -82,6 +84,12 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   }
 
   void showActivityPopup(Map<String, String> activity) {
+    final place = activity['activityPlace'] ?? '';
+    final coords = place.split(',');
+
+    final double? lat = coords.length == 2 ? double.tryParse(coords[0]) : null;
+    final double? lng = coords.length == 2 ? double.tryParse(coords[1]) : null;
+
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -108,9 +116,27 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
               const SizedBox(height: 16),
               infoRow(Icons.calendar_today, "Date: ${activity['activityDate']}"),
               infoRow(Icons.access_time, "Time: ${activity['activityTime']}"),
-              infoRow(Icons.place, "Place: ${activity['activityPlace']}"),
-              const SizedBox(height: 20),
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
+              const SizedBox(height: 16),
+              if (lat != null && lng != null)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.map),
+                  label: const Text("Open in Google Maps"),
+                  onPressed: () async {
+                    final uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Could not launch Google Maps")),
+                      );
+                    }
+                  },
+                ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
             ],
           ),
         ),

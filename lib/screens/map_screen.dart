@@ -580,8 +580,37 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             children: [
               Text("Polygon selected: $polygonId"),
               TextField(controller: friendController, decoration: InputDecoration(labelText: "Friend name")),
-              TextField(controller: dateController, decoration: InputDecoration(labelText: "Date (DD/MM/YYYY)")),
-              TextField(controller: timeController, decoration: InputDecoration(labelText: "Hour (HH:MM)")),
+              TextField(
+                controller: dateController,
+                readOnly: true,
+                decoration: const InputDecoration(labelText: "Date"),
+                onTap: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) {
+                    dateController.text = "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: timeController,
+                readOnly: true,
+                decoration: const InputDecoration(labelText: "Time"),
+                onTap: () async {
+                  final TimeOfDay? picked = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.now(),
+                  );
+                  if (picked != null) {
+                    timeController.text = "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";
+                  }
+                },
+              ),
             ],
           ),
           actions: [

@@ -47,7 +47,6 @@
 
 
 #Começar a fazer:
-- Mobilização blah blah; !feito
 - Git e GCloud; !feito
 - Desenvolvimento de mambos:
     - Ex: funcionalidade de abertura de contas, roles, LOGIN, LOGOUT, acrescentando sucessivamente

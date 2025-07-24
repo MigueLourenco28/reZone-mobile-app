@@ -83,6 +83,16 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     }
   }
 
+  String _formatForCalendar(DateTime dt) {
+    final y = dt.toUtc().year.toString().padLeft(4, '0');
+    final m = dt.toUtc().month.toString().padLeft(2, '0');
+    final d = dt.toUtc().day.toString().padLeft(2, '0');
+    final h = dt.toUtc().hour.toString().padLeft(2, '0');
+    final min = dt.toUtc().minute.toString().padLeft(2, '0');
+    final s = dt.toUtc().second.toString().padLeft(2, '0');
+    return "$y$m$d" "T$h$min${s}Z";
+  }
+
   void showActivityPopup(Map<String, String> activity) {
     final place = activity['activityPlace'] ?? '';
     final coords = place.split(',');
@@ -118,19 +128,87 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
               infoRow(Icons.access_time, "Time: ${activity['activityTime']}"),
               const SizedBox(height: 16),
               if (lat != null && lng != null)
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.map),
-                  label: const Text("Open in Google Maps"),
-                  onPressed: () async {
-                    final uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Could not launch Google Maps")),
-                      );
-                    }
-                  },
+                Column(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.map),
+                      label: const Text("Open in Google Maps"),
+                      onPressed: () async {
+                        final uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Could not launch Google Maps")),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.event),
+                      label: const Text("Add to Calendar"),
+                        onPressed: () async {
+                          try {
+                            final title = "${activity['activityType']} with ${activity['friendUserName']}";
+                            final date = activity['activityDate'] ?? '';
+                            final time = activity['activityTime'] ?? '';
+
+                            print("DATA: $date, HORA: $time");
+
+                            final dateParts = date.contains('-') ? date.split('-') : date.split('/');
+                            final timeParts = time.split(':');
+
+                            int? year, month, day;
+
+                            if (date.contains('-')) {
+                              // formato YYYY-MM-DD
+                              year = int.tryParse(dateParts[0]);
+                              month = int.tryParse(dateParts[1]);
+                              day = int.tryParse(dateParts[2]);
+                            } else {
+                              // formato DD/MM/YYYY
+                              day = int.tryParse(dateParts[0]);
+                              month = int.tryParse(dateParts[1]);
+                              year = int.tryParse(dateParts[2]);
+                            }
+
+                            final hour = int.tryParse(timeParts[0]);
+                            final minute = int.tryParse(timeParts[1]);
+
+                            if (year != null && month != null && day != null && hour != null && minute != null) {
+                              final startDateTime = DateTime(year, month, day, hour, minute);
+                              final endDateTime = startDateTime.add(const Duration(hours: 1));
+
+                              final calendarUri = Uri.parse(
+                                  "https://www.google.com/calendar/render?action=TEMPLATE"
+                                      "&text=${Uri.encodeComponent(title)}"
+                                      "&dates=${_formatForCalendar(startDateTime)}/${_formatForCalendar(endDateTime)}"
+                                      "&details=${Uri.encodeComponent('Scheduled activity')}"
+                                      "&location=${Uri.encodeComponent('$lat,$lng')}"
+                                      "&sf=true&output=xml"
+                              );
+
+                              if (await canLaunchUrl(calendarUri)) {
+                                await launchUrl(calendarUri, mode: LaunchMode.externalApplication);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Could not open calendar")),
+                                );
+                              }
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Invalid date/time values")),
+                              );
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error: $e")),
+                            );
+                          }
+                        }
+                    ),
+                  ],
                 ),
               const SizedBox(height: 12),
               TextButton(
